@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+   Android 12+ (API 31+) backup/transfer rules.
+   Riplox TT me koi login/cookie/session token nahi — sirf history + choti settings.
+   Live-download ka temp cache cloud-backup aur device-transfer dono se exclude.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="external" path="temp" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="external" path="temp" />
+    </device-transfer>
+</data-extraction-rules>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+   Android 11 aur usse neeche (API 31 se pehle) backup rules.
+   Riplox TT sirf download history + choti settings rakhta hai (koi login/cookie nahi).
+   Live-download ke temp cache backup me nahi jane chahiye.
+-->
+<full-backup-content>
+    <exclude domain="external" path="temp" />
+</full-backup-content>

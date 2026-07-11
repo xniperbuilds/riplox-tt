@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="100dp"
+    android:height="100dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <!-- Riplox TT tile — same steel gradient + Rip-Arrow, TT edition = cyan/pink echo
+         (chromatic offset) taake Riplox family me rehte hue alag app lage. -->
+    <path android:pathData="M22,0 H78 A22,22 0 0 1 100,22 V78 A22,22 0 0 1 78,100 H22 A22,22 0 0 1 0,78 V22 A22,22 0 0 1 22,0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="6" android:startY="0"
+                android:endX="94" android:endY="100"
+                android:startColor="#3E4E68"
+                android:endColor="#0A101B" />
+        </aapt:attr>
+    </path>
+    <!-- cyan echo (neeche-baaen) -->
+    <group android:translateX="-2.4" android:translateY="2.4">
+        <path android:fillColor="#2BE9E0"
+            android:pathData="M45,18 h10 a4,4 0 0 1 4,4 v14 l-18,8 v-22 a4,4 0 0 1 4,-4 z" />
+        <path android:fillColor="#2BE9E0"
+            android:pathData="M41,48 L59,40 L59,52 L73,52 L50,80 L27,52 L41,52 Z" />
+    </group>
+    <!-- pink echo (oopar-daaen) -->
+    <group android:translateX="2.4" android:translateY="-2.4">
+        <path android:fillColor="#FF3D6E"
+            android:pathData="M45,18 h10 a4,4 0 0 1 4,4 v14 l-18,8 v-22 a4,4 0 0 1 4,-4 z" />
+        <path android:fillColor="#FF3D6E"
+            android:pathData="M41,48 L59,40 L59,52 L73,52 L50,80 L27,52 L41,52 Z" />
+    </group>
+    <!-- white mark (center, oopar) -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M45,18 h10 a4,4 0 0 1 4,4 v14 l-18,8 v-22 a4,4 0 0 1 4,-4 z" />
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M41,48 L59,40 L59,52 L73,52 L50,80 L27,52 L41,52 Z" />
+</vector>

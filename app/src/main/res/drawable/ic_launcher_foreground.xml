@@ -1,0 +1,38 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Riplox TT — Rip-Arrow + cyan/pink echo (TT edition), adaptive safe zone me centred -->
+    <group
+        android:translateX="14"
+        android:translateY="14.8"
+        android:scaleX="0.8"
+        android:scaleY="0.8">
+        <!-- cyan echo -->
+        <group android:translateX="-3" android:translateY="3">
+            <path
+                android:fillColor="#2BE9E0"
+                android:pathData="M45,18 h10 a4,4 0 0 1 4,4 v14 l-18,8 v-22 a4,4 0 0 1 4,-4 z" />
+            <path
+                android:fillColor="#2BE9E0"
+                android:pathData="M41,48 L59,40 L59,52 L73,52 L50,80 L27,52 L41,52 Z" />
+        </group>
+        <!-- pink echo -->
+        <group android:translateX="3" android:translateY="-3">
+            <path
+                android:fillColor="#FF3D6E"
+                android:pathData="M45,18 h10 a4,4 0 0 1 4,4 v14 l-18,8 v-22 a4,4 0 0 1 4,-4 z" />
+            <path
+                android:fillColor="#FF3D6E"
+                android:pathData="M41,48 L59,40 L59,52 L73,52 L50,80 L27,52 L41,52 Z" />
+        </group>
+        <!-- white mark -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M45,18 h10 a4,4 0 0 1 4,4 v14 l-18,8 v-22 a4,4 0 0 1 4,-4 z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M41,48 L59,40 L59,52 L73,52 L50,80 L27,52 L41,52 Z" />
+    </group>
+</vector>

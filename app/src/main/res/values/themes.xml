@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.XniperDownloader" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- Quick Download popup ke liye transparent theme (source app peeche dikhe) -->
+    <style name="Theme.XniperDownloader.Transparent" parent="android:Theme.Translucent.NoTitleBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:backgroundDimEnabled">true</item>
+    </style>
+</resources>
