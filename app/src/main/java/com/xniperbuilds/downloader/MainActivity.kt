@@ -77,6 +77,7 @@ import androidx.work.WorkManager
 import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.decode.VideoFrameDecoder
+import com.google.android.gms.ads.MobileAds
 import com.xniperbuilds.downloader.ui.theme.SpaceGrotesk
 import com.yausername.youtubedl_android.YoutubeDL
 import kotlinx.coroutines.Dispatchers
@@ -107,6 +108,12 @@ class MainActivity : ComponentActivity() {
             ActivityCompat.requestPermissions(
                 this, arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), 1002
             )
+        }
+
+        // AdMob init (background thread — UI block na ho) + pehla interstitial preload
+        if (Ads.ENABLED) {
+            Thread { try { MobileAds.initialize(this) } catch (_: Exception) {} }.start()
+            Ads.preloadInterstitial(this)
         }
 
         setContent {
@@ -229,7 +236,22 @@ fun Home(activity: ComponentActivity) {
     // Downloads ki state badle to Recent/Failed refresh + resume pe clipboard check
     DisposableEffect(Unit) {
         val wmLive = WorkManager.getInstance(context).getWorkInfosByTagLiveData(DownloadQueue.TAG)
-        val wmObs = Observer<List<WorkInfo>> { refresh() }
+        val seenDone = HashSet<java.util.UUID>()
+        var primed = false
+        val wmObs = Observer<List<WorkInfo>> { infos ->
+            refresh()
+            if (!primed) {
+                // Pehli emission = app khulne pe purani complete downloads; unpe ad na chale
+                infos.forEach { if (it.state == WorkInfo.State.SUCCEEDED) seenDone.add(it.id) }
+                primed = true
+            } else {
+                infos.forEach { wi ->
+                    if (wi.state == WorkInfo.State.SUCCEEDED && seenDone.add(wi.id)) {
+                        Ads.onDownloadComplete(activity)
+                    }
+                }
+            }
+        }
         wmLive.observe(lifecycleOwner, wmObs)
         val lifeObs = LifecycleEventObserver { _, e ->
             if (e == Lifecycle.Event.ON_RESUME) {
@@ -247,8 +269,9 @@ fun Home(activity: ComponentActivity) {
         }
     }
 
+    Column(modifier = Modifier.fillMaxSize()) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxWidth().weight(1f),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 14.dp)
     ) {
         item {
@@ -477,6 +500,8 @@ fun Home(activity: ComponentActivity) {
                 }
             }
         }
+    }
+        BannerAd()
     }
 
     // ---- Delete confirm ----

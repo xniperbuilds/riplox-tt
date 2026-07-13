@@ -19,8 +19,9 @@ android {
         applicationId = "com.xniperbuilds.riploxtt"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        // v1.1.0 = ads build (AdMob) — GitHub ka open-source no-ads release v1.0.0 (vc1) se alag
+        versionCode = 2
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -85,6 +86,9 @@ dependencies {
 
     // Background download queue — survives app close / reboot + auto-retry
     implementation("androidx.work:work-runtime-ktx:2.9.1")
+
+    // AdMob — bottom banner + interstitial (Ads.kt)
+    implementation("com.google.android.gms:play-services-ads:24.4.0")
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

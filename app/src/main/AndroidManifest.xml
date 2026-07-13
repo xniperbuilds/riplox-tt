@@ -23,6 +23,12 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.XniperDownloader">
+
+        <!-- AdMob App ID (real — AdMob console). Ye + Ads.kt ki 2 ad-unit IDs. -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-8029174313177489~6045986402" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
