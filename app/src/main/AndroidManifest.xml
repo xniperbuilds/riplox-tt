@@ -4,10 +4,16 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Download ke doran WifiLock — screen-off pe Wi-Fi sone se download atakti thi -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- BgGuard Step-1: battery-exemption dialog (ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+         is permission ke BINA silently no-op hota hai — dialog khulta hi nahi (TECNO CLA5
+         pe pakda 2026-07-17). Downloads user-initiated hain = Play acceptable use. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Android 8/9 (API<29) gallery-save ke liye — 10+ pe MediaStore, permission ki zaroorat nahi -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
@@ -64,6 +70,13 @@
         <receiver
             android:name=".CopyLinkReceiver"
             android:exported="false" />
+
+        <!-- AIRLOCK v3 Escort — chhota FGS jo naye download ko uske apne FGS-lock tak
+             protect karta hai (door band hone ke baad ka gap cover) -->
+        <service
+            android:name=".EscortService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <!-- WorkManager ka foreground-service type ensure (Android 14+ zaroori) -->
         <service

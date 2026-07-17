@@ -35,12 +35,15 @@ class QuickDownloadActivity : ComponentActivity() {
 
         val workId = DownloadQueue.enqueue(this, link, Prefs.audioMode(this))
         DownloadQueue.awaitStart(this, workId) { started ->
-            Toast.makeText(
-                this,
-                if (started) "⬇ Download started — progress in notification"
-                else "⬇ Queued — starts as soon as network allows",
-                Toast.LENGTH_SHORT
-            ).show()
+            // Background-setup adhoora ho to XOS-type phone download beech me freeze kar
+            // sakta hai — share flow me friction ZERO rakhni hai, is liye sirf hint-toast.
+            val setupOk = BgGuard.batteryExempt(this) && Prefs.bgSetupDone(this)
+            val msg = when {
+                started && setupOk -> "⬇ Download started — progress in notification"
+                started -> "⬇ Started — open Riplox TT once → “Fix background downloads” (so it never pauses)"
+                else -> "⬇ Queued — starts as soon as network allows"
+            }
+            Toast.makeText(this, msg, if (started && !setupOk) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show()
             finish()
         }
     }

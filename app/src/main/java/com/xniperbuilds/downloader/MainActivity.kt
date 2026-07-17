@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -140,6 +141,13 @@ fun Home(activity: ComponentActivity) {
     var failed by remember { mutableStateOf(FailedStore.all(context)) }
     var showAbout by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf<DownloadRecord?>(null) }
+    // XOS/Hiber-type killers: battery exemption ke bina background/share downloads
+    // freeze ho jati hain — aur XOS pe exemption KAAFI NAHI (auto-start + recents-lock
+    // bhi chahiye). Banner: jab tak user setup "Done" na kare, YA exemption chhin jaye.
+    var bgRisk by remember {
+        mutableStateOf(!BgGuard.batteryExempt(context) || !Prefs.bgSetupDone(context))
+    }
+    var showBgSetup by remember { mutableStateOf(false) }
 
     // Recent thumbnails — video file se frame nikaalne wala loader (coil-video)
     val videoLoader = remember {
@@ -256,6 +264,12 @@ fun Home(activity: ComponentActivity) {
         val lifeObs = LifecycleEventObserver { _, e ->
             if (e == Lifecycle.Event.ON_RESUME) {
                 refresh()
+                // Settings se wapsi pe status refresh (exemption mili/chhini to banner update)
+                bgRisk = !BgGuard.batteryExempt(context) || !Prefs.bgSetupDone(context)
+                // Stale/phansi downloads ko dhakka — app khula hai to escort-FGS allowed
+                // hai; ENQUEUED job foran chalegi + worker apna FGS-lock le lega
+                // ("app open pe bhi start nahi hota" ka ilaj).
+                EscortService.kickIfNeeded(context)
                 scope.launch {
                     delay(400)
                     checkClipboard()
@@ -362,6 +376,37 @@ fun Home(activity: ComponentActivity) {
         item {
             GradientButton("Download") { startDownload() }
             Spacer(Modifier.height(18.dp))
+        }
+
+        // ---- Background-freeze guard (XOS/Infinix/Tecno waghera) ----
+        // Ye phones background me app FREEZE kar dete hain → share-tile downloads app
+        // khole bina start/complete nahi hotin. Banner + 3-step setup permanent ilaj.
+        if (bgRisk) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF141B29))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            "⚠️ Background downloads may pause",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFFDDE4EF)
+                        )
+                        Text(
+                            "Your phone freezes apps in the background, so shared downloads can stall until you open Riplox TT. A 1-minute setup fixes it for good.",
+                            fontSize = 12.sp,
+                            color = Color(0xFF9AA6B8)
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Button(onClick = { showBgSetup = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Fix background downloads")
+                        }
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+            }
         }
 
         // ---- Failed downloads (Copy link + Retry — core requirement) ----
@@ -504,6 +549,14 @@ fun Home(activity: ComponentActivity) {
         BannerAd()
     }
 
+    // ---- Background-setup dialog (banner + About dono se khulta hai) ----
+    if (showBgSetup) {
+        BgSetupDialog {
+            showBgSetup = false
+            bgRisk = !BgGuard.batteryExempt(context) || !Prefs.bgSetupDone(context)
+        }
+    }
+
     // ---- Delete confirm ----
     confirmDelete?.let { r ->
         AlertDialog(
@@ -553,6 +606,12 @@ fun Home(activity: ComponentActivity) {
                     )
                     context.startActivity(Intent.createChooser(share, "Share Riplox TT"))
                 }) { Text("Share this app") }
+                // PERMANENT raasta — home banner "Done" ke baad chhup jata hai (Riplox
+                // lesson 2026-07-16: "card nahi dikh raha"), yahan hamesha milega.
+                TextButton(onClick = {
+                    showAbout = false
+                    showBgSetup = true
+                }) { Text("🛡 Fix background downloads") }
                 TextButton(onClick = {
                     try {
                         context.startActivity(
@@ -572,6 +631,66 @@ fun Home(activity: ComponentActivity) {
             }
         }
     }
+}
+
+/** 3-step background-setup dialog — Home banner AUR About-sheet dono se khulta hai
+ * (banner "Done" ke baad chhup jata hai, About wala raasta HAMESHA rehta). Battery
+ * step ka live ✓ status dialog pe wapsi (ON_RESUME) pe refresh hota hai. */
+@Composable
+fun BgSetupDialog(onClose: () -> Unit) {
+    val context = LocalContext.current
+    var battOk by remember { mutableStateOf(BgGuard.batteryExempt(context)) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val obs = LifecycleEventObserver { _, e ->
+            if (e == Lifecycle.Event.ON_RESUME) battOk = BgGuard.batteryExempt(context)
+        }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+    }
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("Background setup (one time)") },
+        text = {
+            Column {
+                Text(
+                    "Do these 3 steps so downloads keep running with the app closed:",
+                    fontSize = 13.sp
+                )
+                Spacer(Modifier.height(10.dp))
+                Button(
+                    onClick = { BgGuard.requestBatteryExempt(context) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (battOk) "1 · Battery ✓ already allowed" else "1 · Allow battery (tap → Allow)") }
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        if (!BgGuard.openAutoStart(context)) {
+                            Toast.makeText(context, "Couldn't open — enable Auto-start in phone settings", Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("2 · Turn ON Auto-start for Riplox TT") }
+                Text(
+                    "No Auto-start list on your phone? Then: App info → Battery → Allow Background Usage (ON).",
+                    fontSize = 10.5.sp,
+                    color = Color(0xFF9AA6B8)
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "3 · Open Recent apps, hold the Riplox TT card and tap the 🔒 lock — this stops the phone from killing it.",
+                    fontSize = 12.sp,
+                    color = Color(0xFF9AA6B8)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                Prefs.setBgSetupDone(context, true)
+                onClose()
+            }) { Text("Done") }
+        }
+    )
 }
 
 /** "2m ago" style chhota time label. */

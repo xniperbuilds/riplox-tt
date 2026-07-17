@@ -11,7 +11,9 @@ import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
+import android.net.wifi.WifiManager
 import android.os.Build
+import android.os.PowerManager
 import android.util.Log
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
@@ -31,6 +33,7 @@ import com.yausername.youtubedl_android.YoutubeDL
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -58,9 +61,29 @@ class DownloadWorker(
     // process network pe HANG hai → kill → retry. (Slot kabhi jam nahi hota.)
     @Volatile private var lastBeat = 0L
 
+    // FGS lock laga ya nahi — field is liye ke late-retry coroutine bhi update kare
+    // aur har progress-update CURRENT value bheje (door-signal + protection status).
+    @Volatile private var fgLocked = false
+
+    // Aakhri dekha hua download-pct — watchdog isi se janta hai ke hum merge/finishing
+    // phase me hain (wahan yt-dlp SILENT hota hai, lambi stall-window chahiye).
+    @Volatile private var lastPct = 0
+
+    // Watchdog ne stall pe download cancel kiya? (user-Cancel se farq karne ke liye —
+    // stall = retryable failure, user-Cancel = chup-chaap khatam.)
+    @Volatile private var stalled = false
+
+    // Attempt kab shuru hua — first-progress deadman ke liye (LIVELOCK fix, Riplox
+    // 2026-07-16: TikTok vt.* links pe yt-dlp retry-loop me kabhi-kabhi output deta
+    // rehta tha → silence-watchdog pacified, par progress 0% se kabhi na hila →
+    // "starting…" pe ghanton latka + slot qabza. 15 min tak koi % nahi = link dead.)
+    @Volatile private var attemptStart = 0L
+
     private companion object {
-        const val STALL_MS = 5 * 60 * 1000L   // 5 min no-output = stalled
-        const val WATCH_EVERY_MS = 30_000L    // check interval
+        const val STALL_MS = 5 * 60 * 1000L          // 5 min no-output = stalled
+        const val FINISH_STALL_MS = 20 * 60 * 1000L  // merge/save phase (silent hota hai) — 20 min
+        const val FIRST_PROGRESS_MS = 15 * 60 * 1000L // 15 min me 0% se na hila = dead link
+        const val WATCH_EVERY_MS = 30_000L           // check interval
     }
 
     /** Expedited work (Android 12 se neeche) ke liye WM isay khud call karta hai. */
@@ -80,16 +103,58 @@ class DownloadWorker(
 
         // FOREGROUND LOCK — door (share-activity/app) khula ho to FGS foran lag jati hai →
         // download system ke quota/defer/XOS killer se protected.
-        val fgLocked = try {
+        fgLocked = try {
             setForeground(foregroundInfo(progId, "⬇ Downloading…", "starting…", null))
             true
         } catch (e: Exception) {
             Log.w("RiploxTT", "FGS lock denied (bg start?) — running unlocked", e)
             false
         }
+
+        // XOS screen-off pe CPU/Wi-Fi sula deta tha → chalti download beech me atak
+        // jati thi. Poore download pe partial wake-lock + wifi-lock (6h safety cap;
+        // release finally me — process maro to system khud chhoD deta hai).
+        val wake = try {
+            (ctx.getSystemService(Context.POWER_SERVICE) as? PowerManager)
+                ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "RiploxTT:dl")?.also {
+                    it.setReferenceCounted(false)
+                    it.acquire(6 * 60 * 60 * 1000L)
+                }
+        } catch (e: Exception) {
+            null
+        }
+        @Suppress("DEPRECATION")
+        val wifi = try {
+            (ctx.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager)
+                ?.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "RiploxTT:dl")?.also {
+                    it.setReferenceCounted(false)
+                    it.acquire()
+                }
+        } catch (e: Exception) {
+            null
+        }
+
         return try {
             setProgressAsync(workDataOf("fg" to fgLocked))
             coroutineScope {
+                // LATE-LOCK RETRY: background start pe Android 12+ FGS deny kar deta hai
+                // (fgLocked=false → download unprotected → XOS freeze = "app kholo to hi
+                // chale" wala masla). Escort-FGS ya app khulte hi agli retry pe REAL FGS
+                // lag jati hai → wahan se download app band hone pe bhi chalti.
+                // Pehla try 3s pe (Escort aksar turant cover de deta hai), phir har 10s.
+                val fgRetry = if (!fgLocked) launch {
+                    repeat(60) { // ~10 min window
+                        kotlinx.coroutines.delay(if (it == 0) 3_000L else 10_000L)
+                        if (fgLocked) return@launch
+                        try {
+                            setForeground(foregroundInfo(progId, "⬇ $title", "downloading…", bmp))
+                            fgLocked = true
+                            setProgressAsync(workDataOf("fg" to true, "title" to title))
+                            Log.i("RiploxTT", "FGS lock acquired late (retry)")
+                        } catch (_: Exception) {
+                        }
+                    }
+                } else null
                 val pvJob = launch(Dispatchers.IO) {
                     val pv = try { getPreview(ctx, link) } catch (e: Exception) { null }
                     if (pv != null) {
@@ -112,26 +177,59 @@ class DownloadWorker(
                             }
                         }
                         lastBeat = System.currentTimeMillis()
+                        attemptStart = System.currentTimeMillis() // slot MILNE ke baad — queue-wait deadman me na gine
+                        // Download alag async me — stall pe watchdog PROCESS-kill + isay CANCEL
+                        // dono karta hai. Pehle sirf process kill hota tha: hang agar Kotlin-side
+                        // ho (MediaStore save waghera) to coroutine kabhi nahi lauti → slot
+                        // HAMESHA ke liye jam → naye downloads "starting…" pe atke rehte the
+                        // (app khula ho tab bhi start na hone wala masla).
+                        val dl = async(Dispatchers.IO) {
+                            runDownload(
+                                ctx, link, audio, pid,
+                                onBeat = { lastBeat = System.currentTimeMillis() },
+                                onSave = { sp ->
+                                    // Gallery-copy ke chunk-beats: watchdog reset + live "Saving…"
+                                    lastBeat = System.currentTimeMillis()
+                                    if (sp % 5 == 0 || sp == 100) {
+                                        safeNotify(nm, progId, buildNotif("⬇ $title", "Saving to gallery… $sp%", true, bmp))
+                                    }
+                                }
+                            ) { p ->
+                                lastPct = p
+                                // 100% = download khatam, par ffmpeg-merge + gallery-save
+                                // BAAKI hote hain — "100%" atka na lage, saaf batao.
+                                val txt = if (p >= 99) "Finishing — merging & saving…" else "$p%"
+                                safeNotify(nm, progId, buildNotif("⬇ $title", txt, true, bmp))
+                                setProgressAsync(workDataOf("pct" to p, "title" to title, "fg" to fgLocked))
+                            }
+                        }
+                        // Watchdog — stall pe kill (→ retry). Merge/finishing phase (pct ≥ 99)
+                        // me yt-dlp LEGIT silent hota hai (ffmpeg output nahi deta) — wahan
+                        // 20-min window, warna healthy 100% merge kill ho ke 0 se retry hota
+                        // tha = "100% pe stuck" loop.
                         val watchdog = launch(Dispatchers.IO) {
                             while (true) {
                                 kotlinx.coroutines.delay(WATCH_EVERY_MS)
-                                if (System.currentTimeMillis() - lastBeat > STALL_MS) {
-                                    Log.w("RiploxTT", "watchdog: no output ${STALL_MS / 1000}s — killing $pid")
+                                val now = System.currentTimeMillis()
+                                val limit = if (lastPct >= 99) FINISH_STALL_MS else STALL_MS
+                                // Deadman #2: output aata rahe (retry-loop livelock) par 15 min
+                                // tak 0% se na hile = link/extractor dead — silence-check isay
+                                // kabhi nahi pakadta tha ("starting…" pe ghanton latka).
+                                val neverStarted = lastPct == 0 && now - attemptStart > FIRST_PROGRESS_MS
+                                if (now - lastBeat > limit || neverStarted) {
+                                    Log.w("RiploxTT", "watchdog: ${if (neverStarted) "no progress ${FIRST_PROGRESS_MS / 1000}s" else "no output ${limit / 1000}s"} — killing $pid")
+                                    stalled = true
                                     try { YoutubeDL.getInstance().destroyProcessById(pid) } catch (_: Throwable) {}
+                                    dl.cancel()
                                     break
                                 }
                             }
                         }
                         try {
-                            withContext(Dispatchers.IO) {
-                                runDownload(
-                                    ctx, link, audio, pid,
-                                    onBeat = { lastBeat = System.currentTimeMillis() }
-                                ) { p ->
-                                    safeNotify(nm, progId, buildNotif("⬇ $title", "$p%", true, bmp))
-                                    setProgressAsync(workDataOf("pct" to p, "title" to title, "fg" to fgLocked))
-                                }
-                            }
+                            dl.await()
+                        } catch (e: CancellationException) {
+                            // Watchdog-stall → retryable failure. User/WM-cancel → waise hi upar.
+                            if (stalled) throw Exception("Stalled — no data received for too long") else throw e
                         } finally {
                             watchdog.cancel()
                             killer.cancel()
@@ -147,6 +245,7 @@ class DownloadWorker(
                     )
                 } finally {
                     pvJob.cancel()
+                    fgRetry?.cancel()
                 }
             }
             Result.success()
@@ -165,6 +264,13 @@ class DownloadWorker(
                 safeNotify(nm, doneId, buildNotif("❌ Download failed", msg, false, null, failedLink = link))
                 Result.failure()
             }
+        } finally {
+            // Ongoing progress-notif HAR raste pe cancel (success/fail/retry/cancel) —
+            // unlocked (bina-FGS) case me isay koi nahi hatata tha → "100% pe atka"
+            // notif hamesha rehta tha aur ✓ done-notif uske neeche daba rehta.
+            try { nm.cancel(progId) } catch (_: Exception) {}
+            try { if (wake?.isHeld == true) wake.release() } catch (_: Exception) {}
+            try { if (wifi?.isHeld == true) wifi.release() } catch (_: Exception) {}
         }
     }
 
@@ -295,6 +401,11 @@ object DownloadQueue {
             .addTag(TAG)
             .build()
         WorkManager.getInstance(context.applicationContext).enqueue(req)
+        // AIRLOCK v3: door ke saath ESCORT bhi — chhota FGS jo job ko uske apne
+        // FGS-lock tak escort karta hai (JobScheduler foran chalata hai + worker ki
+        // setForeground deny nahi hoti). fg=true aate hi khud band. Door 10s me band
+        // ho jaye tab bhi download protected rehti hai.
+        EscortService.start(context)
         return req.id
     }
 
@@ -322,8 +433,13 @@ object DownloadQueue {
                 .getWorkInfoByIdLiveData(id)
                 .observe(activity) { info ->
                     if (info == null) return@observe
-                    if (info.progress.getBoolean("fg", false) || info.state.isFinished) {
+                    // fg=true → FGS lock confirm; isFinished → itni tez khatam/fail ke
+                    // intezar ka matlab nahi. FAILED/CANCELLED pe "started" TRUE mat
+                    // bolo (galat toast jata tha).
+                    if (info.progress.getBoolean("fg", false)) {
                         fire(true)
+                    } else if (info.state.isFinished) {
+                        fire(info.state == androidx.work.WorkInfo.State.SUCCEEDED)
                     }
                 }
         } catch (e: Exception) {
@@ -333,11 +449,16 @@ object DownloadQueue {
         android.os.Handler(activity.mainLooper).postDelayed({ fire(false) }, timeoutMs)
     }
 
-    /** Koi background download RUNNING hai? (engine-update / temp-clear guard ke liye) */
+    /** Koi background download RUNNING/PENDING hai? (engine-update / temp-clear guard)
+     * ⚠️ ENQUEUED bhi COUNT hota hai — pending job kisi bhi second RUNNING ho sakti hai;
+     * sirf-RUNNING check ke sath engine-update/temp-clear usse takra jate the. */
     fun hasActive(context: Context): Boolean = try {
         WorkManager.getInstance(context.applicationContext)
             .getWorkInfosByTag(TAG).get()
-            .any { it.state == androidx.work.WorkInfo.State.RUNNING }
+            .any {
+                it.state == androidx.work.WorkInfo.State.RUNNING ||
+                    it.state == androidx.work.WorkInfo.State.ENQUEUED
+            }
     } catch (e: Exception) {
         false
     }

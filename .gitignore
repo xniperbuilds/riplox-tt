@@ -21,4 +21,5 @@ build/
 *.keystore
 # internal only — not for the public repo
 /launch-pack/
+/Play Launch Pack/
 _build_log.txt

@@ -6,7 +6,7 @@
 
 **Fast, clean TikTok video downloader for Android.**
 
-Paste a link or share from the app — the no-watermark video lands straight in your gallery. No ads, no tracking, no login.
+Paste a link or share from the app — the no-watermark video lands straight in your gallery. No login, no account — paste and go.
 
 [![Release](https://img.shields.io/github/v/release/xniperbuilds/riplox-tt?label=Download&color=2BE9E0)](https://github.com/xniperbuilds/riplox-tt/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/xniperbuilds/riplox-tt/total?color=2BE9E0)](https://github.com/xniperbuilds/riplox-tt/releases)
@@ -35,7 +35,7 @@ Paste a link or share from the app — the no-watermark video lands straight in 
 - ♻️ **Failed? One tap** — every failure gives you **Copy link** and **Retry**, right where you are
 - 🕘 **Recent list** — tap to play, copy link, download again, or delete
 - 📁 **Straight to your gallery** — video in `Movies/RiploxTT`, audio in `Music/RiploxTT`
-- 🚫 **No ads. No tracking. No account.** Nothing leaves your phone except the download itself
+- 🚫 **No account, no login** — install and start downloading right away
 - 🎨 **Clean AMOLED-black UI** — Material 3, one calm screen, no clutter
 
 ## Install

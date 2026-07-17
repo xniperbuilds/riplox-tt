@@ -19,9 +19,11 @@ android {
         applicationId = "com.xniperbuilds.riploxtt"
         minSdk = 26
         targetSdk = 36
-        // v1.1.0 = ads build (AdMob) — GitHub ka open-source no-ads release v1.0.0 (vc1) se alag
-        versionCode = 2
-        versionName = "1.1.0"
+        // v1.1.1 = ads + AIRLOCK v3 reliability (escort FGS, watchdog v2, save-beats,
+        // safe startup-cleanup, bg-setup guide) — Riplox 2026-07-16 fixes ka port.
+        // GitHub ka open-source no-ads release v1.0.0 (vc1) se alag lineage.
+        versionCode = 3
+        versionName = "1.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

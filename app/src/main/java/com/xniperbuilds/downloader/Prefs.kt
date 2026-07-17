@@ -21,4 +21,10 @@ object Prefs {
     /** Clipboard se aakhri auto-fill link (same link dobara suggest na ho). */
     fun lastClip(c: Context): String = sp(c).getString("lastClip", "") ?: ""
     fun setLastClip(c: Context, v: String) = sp(c).edit().putString("lastClip", v).apply()
+
+    /** Background-setup guide (battery + auto-start + recents-lock) user ne Done kiya?
+     * XOS-type phones battery-exempt hone ke BAAD bhi auto-start ke bina freeze karte —
+     * is liye banner exemption se azaad, is flag tak dikhta hai. */
+    fun bgSetupDone(c: Context) = sp(c).getBoolean("bgSetupDone", false)
+    fun setBgSetupDone(c: Context, v: Boolean) = sp(c).edit().putBoolean("bgSetupDone", v).apply()
 }

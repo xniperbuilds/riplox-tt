@@ -35,11 +35,14 @@ class XniperApp : Application() {
 
         // Startup-safai (background thread — UI block nahi):
         // pruneWork = finished WM jobs ka DB kachra saaf. Temp-clear = crashed
-        // downloads ke orphan dl_* folders — sirf tab jab KOI download active na ho.
+        // downloads ke orphan dl_* folders (finally cleanup process-death pe nahi
+        // chalta). ⚠️ SIRF 24h+ purane folders — pehle hasActive() check tha jo
+        // ENQUEUED job miss karta tha: app-open pe wahi job usi second RUNNING hoti
+        // aur cleanup uska TAAZA temp folder uDa deta tha → "File not found"/stuck.
         Thread {
             try {
                 androidx.work.WorkManager.getInstance(this).pruneWork()
-                if (!DownloadQueue.hasActive(this)) clearTempFiles(this)
+                clearStaleTempFiles(this)
             } catch (t: Throwable) {
                 Log.e("XniperApp", "startup cleanup failed", t)
             }

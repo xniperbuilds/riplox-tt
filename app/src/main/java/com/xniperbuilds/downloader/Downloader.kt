@@ -80,6 +80,25 @@ fun clearTempFiles(context: Context): Long {
     return freed
 }
 
+/** Startup-safai ka SAFE variant — sirf 24h+ purane dl_* folders (naam me timestamp hai).
+ * ⚠️ Poora clearTempFiles startup pe race karta tha: ENQUEUED job app-open pe usi second
+ * RUNNING hoti thi aur uska taaza temp folder cleanup uDa deta tha → download "chalti"
+ * par file gayab → File not found / 100% stuck. Age-check se race namumkin. */
+fun clearStaleTempFiles(context: Context, olderThanMs: Long = 24 * 60 * 60 * 1000L): Long {
+    val base = context.getExternalFilesDir("temp") ?: return 0L
+    val cutoff = System.currentTimeMillis() - olderThanMs
+    var freed = 0L
+    base.listFiles()?.forEach { f ->
+        val ts = f.name.removePrefix("dl_").substringBefore('_').toLongOrNull()
+        val stale = if (ts != null) ts < cutoff else f.lastModified() < cutoff
+        if (stale) {
+            freed += f.walkBottomUp().filter { it.isFile }.sumOf { it.length() }
+            f.deleteRecursively()
+        }
+    }
+    return freed
+}
+
 /**
  * Poora yt-dlp download + gallery save, live progress. DownloadWorker isay
  * foreground WorkManager job me chalata hai (XOS-killer proof).
@@ -92,6 +111,7 @@ fun runDownload(
     audioOnly: Boolean,
     processId: String? = null,   // Cancel ke liye — YoutubeDL.destroyProcessById(processId)
     onBeat: () -> Unit = {},     // har yt-dlp output pe fire — stall-watchdog ka signal
+    onSave: (Int) -> Unit = {},  // gallery-save copy progress (0–100) — "Finishing" phase visible + beats
     onProgress: (Int) -> Unit
 ): String {
     Log.i("RiploxTT", "runDownload audio=$audioOnly ${link.take(50)}")
@@ -148,7 +168,19 @@ fun runDownload(
             var saved = 0
             for (file in media) {
                 val fname = file.name
-                val location = savePublic(context, file, audioOnly)
+                // Save-copy ke "beats": har chunk pe watchdog reset + pct-change pe onSave —
+                // bade file ki gallery-copy ab na watchdog se marti hai na "100% stuck" dikhti.
+                val total = file.length().coerceAtLeast(1)
+                var lastSaveP = -1
+                val onCopy: (Long) -> Unit = { copied ->
+                    onBeat()
+                    val sp = ((copied * 100) / total).toInt().coerceIn(0, 100)
+                    if (sp != lastSaveP) {
+                        lastSaveP = sp
+                        onSave(sp)
+                    }
+                }
+                val location = savePublic(context, file, audioOnly, onCopy)
                 History.add(context, link, fname, "TT", location, audioOnly)
                 if (saved == 0) firstDisplay = "${if (audioOnly) "Music" else "Movies"}/RiploxTT/$fname"
                 saved++
