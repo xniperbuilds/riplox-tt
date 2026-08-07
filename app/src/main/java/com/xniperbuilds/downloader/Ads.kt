@@ -20,22 +20,22 @@ import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 
 /**
- * AdMob — bottom banner (home) + interstitial (har 2nd download complete pe).
+ * AdMob — bottom banner (home) + interstitial (on every 2nd completed download).
  *
- * REAL AdMob IDs lage hue hain (account ca-app-pub-8029174313177489).
- * IDs teen jagah: yahan BANNER_ID + INTERSTITIAL_ID, aur AndroidManifest.xml ka
- * APPLICATION_ID meta-data (App ID). Backup: .xniper-secrets\admob-riploxtt.txt.
- * ⚠️ Apne phone pe test karna ho to `RiploxTT_testads.apk` (Google test ids) use karo —
- *    apne hi real ads pe click = AdMob invalid-traffic / policy-violation.
+ * The IDs now live in **build.gradle.kts** (BuildConfig + manifest placeholder):
+ *   release build → the real ids
+ *   qa build      → Google's TEST ids (assembleQa)
+ * ⚠️ Always test on your own phone via **assembleQa** (the `Riplox TT QA` app) — clicking
+ *    your own real ads counts as AdMob invalid traffic / a policy violation.
  */
 object Ads {
     const val ENABLED = true
 
-    // Real AdMob ad-unit IDs (Riplox TT — AdMob console)
-    const val BANNER_ID = "ca-app-pub-8029174313177489/7721461931"
-    const val INTERSTITIAL_ID = "ca-app-pub-8029174313177489/8209115310"
+    // Supplied by the build type — no more swapping ids by hand
+    val BANNER_ID: String = BuildConfig.AD_BANNER_ID
+    val INTERSTITIAL_ID: String = BuildConfig.AD_INTERSTITIAL_ID
 
-    // Har kitni download complete pe ek full-screen ad
+    // How many completed downloads between full-screen ads
     private const val SHOW_EVERY_N = 2
 
     private var interstitial: InterstitialAd? = null
@@ -55,8 +55,8 @@ object Ads {
     }
 
     /**
-     * Ek download complete hui — har 2nd pe interstitial dikhao (agar app foreground me
-     * ho aur ad ready ho). Warna chup-chaap skip + agle ke liye preload.
+     * A download finished — show an interstitial on every 2nd one (provided the app is in
+     * the foreground and an ad is ready). Otherwise skip quietly and preload for next time.
      */
     fun onDownloadComplete(activity: Activity) {
         if (!ENABLED) return

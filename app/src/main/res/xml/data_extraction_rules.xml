@@ -1,13 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Android 12+ (API 31+) backup/transfer rules.
-   Riplox TT me koi login/cookie/session token nahi — sirf history + choti settings.
-   Live-download ka temp cache cloud-backup aur device-transfer dono se exclude.
+   Backup/transfer rules for Android 12+ (API 31+).
+   Riplox TT: history and small settings may be backed up, BUT TikTok login cookies
+   (the session token) go into neither a cloud backup nor a device transfer.
+   The temp cache of an in-flight download is excluded from both as well.
 -->
 <data-extraction-rules>
     <cloud-backup>
+        <exclude domain="file" path="cookies.txt" />
         <exclude domain="external" path="temp" />
     </cloud-backup>
     <device-transfer>
+        <exclude domain="file" path="cookies.txt" />
         <exclude domain="external" path="temp" />
     </device-transfer>
 </data-extraction-rules>

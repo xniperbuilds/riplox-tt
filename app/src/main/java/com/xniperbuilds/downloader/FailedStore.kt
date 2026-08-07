@@ -16,9 +16,9 @@ data class FailedItem(
 )
 
 /**
- * Failed downloads ka APNA store (failed.json) — WorkManager ke FAILED WorkInfo pe bharosa
- * nahi (wo prune ho jate + purane records me retry-data nahi hota tha). Ye reliable hai:
- * reboot/prune ke baad bhi Retry ka poora data yahin milta hai.
+ * OUR OWN store for failed downloads (failed.json) — WorkManager's FAILED WorkInfo is not
+ * trustworthy here (those get pruned, and older records carried no retry data). This one is
+ * reliable: even after a reboot or a prune, the full Retry data is still here.
  */
 object FailedStore {
     private const val FILE = "failed.json"

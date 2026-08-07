@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Android 11 aur usse neeche (API 31 se pehle) backup rules.
-   Riplox TT sirf download history + choti settings rakhta hai (koi login/cookie nahi).
-   Live-download ke temp cache backup me nahi jane chahiye.
+   Backup rules for Android 11 and below (before API 31).
+   Riplox TT: download history and small settings may be backed up, BUT TikTok login
+   cookies (the session token) must NEVER leave the device in a cloud backup
+   (privacy/security). The temp cache of an in-flight download is excluded too.
 -->
 <full-backup-content>
+    <exclude domain="file" path="cookies.txt" />
     <exclude domain="external" path="temp" />
 </full-backup-content>

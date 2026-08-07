@@ -5,7 +5,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-// Riplox TT — ek hi look: AMOLED black + steel accents (koi theme setting nahi, light rehna hai).
+// Riplox TT — one look only: AMOLED black + steel accents (no theme setting, kept lightweight).
 private val TtColorScheme = darkColorScheme(
     primary = RiploxSteel,
     secondary = RiploxSteelDim,

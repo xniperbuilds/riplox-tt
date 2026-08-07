@@ -11,8 +11,8 @@ import com.yausername.youtubedl_android.YoutubeDLException
 
 /**
  * App-level class. Engine init + notification channel.
- * NOTE: engine auto-update yahan NAHI hota (share-popup ke waqt download se takrata tha) —
- * wo MainActivity kholne par hota hai (din me ek dafa).
+ * NOTE: the engine auto-update does NOT happen here (it collided with a download during the
+ * share popup) — it runs when MainActivity opens, once a day.
  */
 class XniperApp : Application() {
     override fun onCreate() {
@@ -33,12 +33,12 @@ class XniperApp : Application() {
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
 
-        // Startup-safai (background thread — UI block nahi):
-        // pruneWork = finished WM jobs ka DB kachra saaf. Temp-clear = crashed
-        // downloads ke orphan dl_* folders (finally cleanup process-death pe nahi
-        // chalta). ⚠️ SIRF 24h+ purane folders — pehle hasActive() check tha jo
-        // ENQUEUED job miss karta tha: app-open pe wahi job usi second RUNNING hoti
-        // aur cleanup uska TAAZA temp folder uDa deta tha → "File not found"/stuck.
+        // Startup cleanup (on a background thread, so the UI is never blocked):
+        // pruneWork clears the DB litter left by finished WM jobs. The temp clear removes
+        // orphaned dl_* folders from crashed downloads (the `finally` cleanup does not run
+        // on process death). ⚠️ ONLY folders older than 24h — this used to be a hasActive()
+        // check that missed ENQUEUED jobs: at app open such a job went RUNNING in the same
+        // second and the cleanup deleted its BRAND-NEW temp folder → "File not found"/stuck.
         Thread {
             try {
                 androidx.work.WorkManager.getInstance(this).pruneWork()

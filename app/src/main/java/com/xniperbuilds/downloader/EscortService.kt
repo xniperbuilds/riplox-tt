@@ -14,19 +14,20 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 
 /**
- * AIRLOCK v3 — "ESCORT": door (share-activity) ke saath ek chhota REAL foreground
- * service jo har naye download ko uske APNE FGS-lock tak escort karta hai.
+ * AIRLOCK v3 — the "ESCORT": a small REAL foreground service that runs alongside the door
+ * (the share activity) and escorts every new download as far as its OWN FGS lock.
  *
- * Masla jo ye hal karta hai (Riplox 2026-07-16): door 10s me band ho jata tha — agar WM
- * job us window me RUNNING+fg tak na pahunchi (JobScheduler defer / bucket / XOS), to app
- * background — worker ka setForeground() Android 12+ pe DENY — download unprotected —
- * XOS freeze = "app kholo to hi chale". Escort ke hote hue:
- *   1. App ka procstate FGS-level rehta hai → JobScheduler ENQUEUED job FORAN chalata hai.
- *   2. App "background" me ginti hi nahi (active FGS = not-background) → worker ki
- *      apni setForeground() kabhi deny nahi hoti.
- *   3. Worker ka fg=true aate hi escort khud stopSelf() — koi lamba battery cost nahi.
- * Ye WM/enqueue architecture ko chheDe bagair sirf ek "saya" add karta hai.
- * ⚠️ setExpedited YAHAN BHI KABHI NAHI (Riplox 2026-07-09 lesson — quota job, FGS nahi).
+ * The problem it solves: the door closed after 10s, and if the WM job had not reached
+ * RUNNING+fg within that window (JobScheduler deferral / app-standby bucket / XOS), the app
+ * went to background → the worker's setForeground() was DENIED on Android 12+ → the download
+ * was unprotected → XOS froze it = "it only runs while the app is open". With the escort:
+ *   1. The app's procstate stays at FGS level → JobScheduler runs the ENQUEUED job AT ONCE.
+ *   2. The app never counts as "background" (an active FGS = not backgrounded) → the
+ *      worker's own setForeground() is never denied.
+ *   3. As soon as the worker reports fg=true the escort calls stopSelf() — no lasting
+ *      battery cost.
+ * It adds nothing but a "shadow" — the WM/enqueue architecture is untouched.
+ * ⚠️ NEVER setExpedited HERE EITHER (same lesson — that is a quota job, not an FGS).
  */
 class EscortService : Service() {
 
@@ -60,7 +61,7 @@ class EscortService : Service() {
         watch()
     }
 
-    // Har start() pe naya watch NAHI — onCreate ka loop hi kaafi (service single-instance).
+    // No new watch on every start() — the onCreate loop is enough (the service is single-instance).
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_NOT_STICKY
 
     /** Jab tak koi job ENQUEUED ya RUNNING-bina-fg-lock hai, zinda raho (cap tak). */
@@ -87,12 +88,12 @@ class EscortService : Service() {
     }
 
     companion object {
-        private const val NOTIF_ID = 3999           // progId range (4000+) se neeche
+        private const val NOTIF_ID = 3999           // just below the progId range (4000+)
         private const val POLL_MS = 3_000L
         private const val CAP_MS = 10 * 60 * 1000L  // battery-safety hard cap
 
-        /** Koi download escort maang rahi hai? ENQUEUED (scheduler start kare) ya
-         * RUNNING jiska apna FGS-lock (progress "fg") abhi confirm nahi. */
+        /** Is any download asking for an escort? Either ENQUEUED (waiting on the scheduler),
+         * or RUNNING without its own FGS lock (progress "fg") confirmed yet. */
         fun needsEscort(ctx: Context): Boolean = try {
             WorkManager.getInstance(ctx.applicationContext)
                 .getWorkInfosByTag(DownloadQueue.TAG).get()
@@ -105,8 +106,8 @@ class EscortService : Service() {
             false
         }
 
-        /** Escort chalao (idempotent). Background se deny ho to chup-chaap ignore —
-         * worker ki late-FGS-retry wahan cover karti hai. */
+        /** Start the escort (idempotent). If it is denied from the background, ignore it
+         * quietly — the worker's late-FGS retry covers that case. */
         fun start(ctx: Context) {
             try {
                 ContextCompat.startForegroundService(
@@ -117,8 +118,8 @@ class EscortService : Service() {
             }
         }
 
-        /** App khulne pe: koi phansi/pending job ho to escort se dhakka do
-         * (stale ENQUEUED jobs ka "app open pe bhi start nahi" fix). */
+        /** On app open: if a job is stuck or pending, give it a nudge via the escort
+         * (the fix for stale ENQUEUED jobs that "won't start even with the app open"). */
         fun kickIfNeeded(ctx: Context) {
             val app = ctx.applicationContext
             Thread {

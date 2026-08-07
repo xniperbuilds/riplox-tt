@@ -6,7 +6,7 @@
 
 **Fast, clean TikTok video downloader for Android.**
 
-Paste a link or share from the app — the no-watermark video lands straight in your gallery. No login, no account — paste and go.
+Paste a link or share from the app — the no-watermark video lands straight in your gallery. Public videos need no account at all; an optional login is there only for private, region-locked or age-restricted ones.
 
 [![Release](https://img.shields.io/github/v/release/xniperbuilds/riplox-tt?label=Download&color=2BE9E0)](https://github.com/xniperbuilds/riplox-tt/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/xniperbuilds/riplox-tt/total?color=2BE9E0)](https://github.com/xniperbuilds/riplox-tt/releases)
@@ -35,7 +35,7 @@ Paste a link or share from the app — the no-watermark video lands straight in 
 - ♻️ **Failed? One tap** — every failure gives you **Copy link** and **Retry**, right where you are
 - 🕘 **Recent list** — tap to play, copy link, download again, or delete
 - 📁 **Straight to your gallery** — video in `Movies/RiploxTT`, audio in `Music/RiploxTT`
-- 🚫 **No account, no login** — install and start downloading right away
+- 🔓 **No account needed** — public videos download straight away. **Connect TikTok** is optional, for private / region-locked / age-restricted videos, and can be switched off again without logging out
 - 🎨 **Clean AMOLED-black UI** — Material 3, one calm screen, no clutter
 
 ## Install
@@ -48,7 +48,11 @@ Paste a link or share from the app — the no-watermark video lands straight in 
 
 ## How it works
 
-Riplox TT is built on the battle-tested [yt-dlp](https://github.com/yt-dlp/yt-dlp) + FFmpeg engine, wrapped in a fast, native Jetpack Compose app. It does **one thing well**: grab a TikTok video (or its audio) cleanly and quickly, with a background queue that doesn't give up if your connection hiccups. The engine updates itself quietly so links keep working.
+Riplox TT is a native Jetpack Compose app that does **one thing well**: grab a TikTok video (or its audio) cleanly and quickly, with a background queue that doesn't give up if your connection hiccups.
+
+It reads a video's data itself, using a desktop user agent, and falls back to the phone's own WebView if TikTok asks for a JS challenge. That matters: TikTok only serves video data to a request that looks like a desktop browser, and [yt-dlp](https://github.com/yt-dlp/yt-dlp) on Android cannot imitate one (the bundled `youtubedl-android` ships without `curl_cffi`, so impersonation is unavailable — the same wall [yt-dlp#15653](https://github.com/yt-dlp/yt-dlp/issues/15653) describes). yt-dlp + FFmpeg are still bundled and still used — as a fallback extractor and for MP3 conversion — and the engine updates itself quietly so links keep working.
+
+Transfers resume from where they stopped, so a dropped connection on a big video costs you nothing.
 
 ## FAQ
 
@@ -62,7 +66,10 @@ TikTok occasionally rate-limits a request. Tap **Retry**, or **Copy link** and p
 Your gallery — `Movies/RiploxTT` for video, `Music/RiploxTT` for MP3. Photo posts go to `Pictures/RiploxTT`.
 
 **Is it safe?**
-It's open source — read the code. No ads SDK, no analytics, no accounts, no network calls except the download itself.
+It's open source — read the code. No analytics and no tracking of what you download. Two things are worth stating plainly: the released build **does include the AdMob SDK** (a banner, plus an interstitial after every second completed download), and **if** you use the optional Connect TikTok login, the session cookies stay in the app's private storage on your phone — excluded from cloud backup and device transfer, never sent anywhere, and your password is typed on TikTok's own page, never seen by the app.
+
+**Do I have to log in?**
+No. Public videos download without an account. Connect TikTok exists only for private, region-locked or age-restricted videos, and the "Use my login for downloads" switch turns it off again without logging you out.
 
 **Only TikTok?**
 Yes, by design. Riplox TT is TikTok-only. For 1000+ other sites, see [Riplox](https://github.com/xniperbuilds/riplox).

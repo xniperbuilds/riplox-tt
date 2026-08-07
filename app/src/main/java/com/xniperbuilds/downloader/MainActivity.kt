@@ -48,6 +48,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -93,7 +94,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Notification permission (Android 13+) — download progress isi me dikhti hai
+        // Notification permission (Android 13+) — this is where download progress shows
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -102,7 +103,7 @@ class MainActivity : ComponentActivity() {
             )
         }
 
-        // Android 8/9 (API < 29): gallery-save ke liye storage permission chahiye
+        // Android 8/9 (API < 29): saving to the gallery needs the storage permission
         if (Build.VERSION.SDK_INT < 29 &&
             checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -141,15 +142,22 @@ fun Home(activity: ComponentActivity) {
     var failed by remember { mutableStateOf(FailedStore.all(context)) }
     var showAbout by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf<DownloadRecord?>(null) }
-    // XOS/Hiber-type killers: battery exemption ke bina background/share downloads
-    // freeze ho jati hain — aur XOS pe exemption KAAFI NAHI (auto-start + recents-lock
-    // bhi chahiye). Banner: jab tak user setup "Done" na kare, YA exemption chhin jaye.
+    // XOS/hibernation-style killers: without a battery exemption, background/share
+    // downloads freeze — and on XOS the exemption alone is NOT ENOUGH (auto-start and the
+    // recents lock are needed too). The banner stays until the user marks the setup "Done",
+    // or reappears if the exemption is taken away.
     var bgRisk by remember {
         mutableStateOf(!BgGuard.batteryExempt(context) || !Prefs.bgSetupDone(context))
     }
     var showBgSetup by remember { mutableStateOf(false) }
+    // Connect TikTok (login/cookies) — for private / region-locked / age-restricted videos
+    var ttConnected by remember { mutableStateOf(tiktokConnected(context)) }
+    var useLogin by remember { mutableStateOf(Prefs.cookiesEnabled(context)) }
+    // The "a new version is out" notice — Play In-App Updates on a Play build only
+    // (details and the Play-policy reasoning are in AppUpdates.kt).
+    var updateNotice by remember { mutableStateOf<UpdateNotice?>(null) }
 
-    // Recent thumbnails — video file se frame nikaalne wala loader (coil-video)
+    // Recent thumbnails — a loader that pulls a frame out of the video file (coil-video)
     val videoLoader = remember {
         ImageLoader.Builder(context)
             .components { add(VideoFrameDecoder.Factory()) }
@@ -218,7 +226,7 @@ fun Home(activity: ComponentActivity) {
         }
     }
 
-    // Engine auto-update — din me ek dafa, chalti download ke waqt nahi
+    // Engine auto-update — once a day, and never while a download is running
     LaunchedEffect(Unit) {
         try {
             val today = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
@@ -226,7 +234,10 @@ fun Home(activity: ComponentActivity) {
                 val busy = withContext(Dispatchers.IO) { DownloadQueue.hasActive(context) }
                 if (!busy) {
                     withContext(Dispatchers.IO) {
-                        YoutubeDL.getInstance().updateYoutubeDL(context, YoutubeDL.UpdateChannel.STABLE)
+                        // NIGHTLY — TikTok keeps changing its extractor/API, and fixes land in
+                        // yt-dlp nightly first (the stable channel ran weeks behind → "No video
+                        // formats" / "unable to extract" on a fresh install).
+                        YoutubeDL.getInstance().updateYoutubeDL(context, YoutubeDL.UpdateChannel.NIGHTLY)
                     }
                     Prefs.setLastUpdateDay(context, today)
                 }
@@ -235,13 +246,22 @@ fun Home(activity: ComponentActivity) {
         }
     }
 
-    // Pehli open pe clipboard check (thoda delay — window focus ke liye)
+    // Clipboard check on first open (a short delay, to let the window take focus)
     LaunchedEffect(Unit) {
         delay(400)
         checkClipboard()
     }
 
-    // Downloads ki state badle to Recent/Failed refresh + resume pe clipboard check
+    // Update notice — ONLY on a Play install (Play In-App Updates): a "Restart to finish"
+    // card once the FLEXIBLE download completes, or Google's full-screen IMMEDIATE screen
+    // when it is urgent. Sideload/GitHub builds run no update check. See AppUpdates.kt.
+    val updates = remember { AppUpdates(activity) }
+    DisposableEffect(Unit) {
+        updates.check { updateNotice = it }
+        onDispose { updates.dispose() }
+    }
+
+    // Refresh Recent/Failed whenever download state changes, and check the clipboard on resume
     DisposableEffect(Unit) {
         val wmLive = WorkManager.getInstance(context).getWorkInfosByTagLiveData(DownloadQueue.TAG)
         val seenDone = HashSet<java.util.UUID>()
@@ -249,7 +269,7 @@ fun Home(activity: ComponentActivity) {
         val wmObs = Observer<List<WorkInfo>> { infos ->
             refresh()
             if (!primed) {
-                // Pehli emission = app khulne pe purani complete downloads; unpe ad na chale
+                // The first emission is old completed downloads at app open — no ad for those
                 infos.forEach { if (it.state == WorkInfo.State.SUCCEEDED) seenDone.add(it.id) }
                 primed = true
             } else {
@@ -264,11 +284,13 @@ fun Home(activity: ComponentActivity) {
         val lifeObs = LifecycleEventObserver { _, e ->
             if (e == Lifecycle.Event.ON_RESUME) {
                 refresh()
-                // Settings se wapsi pe status refresh (exemption mili/chhini to banner update)
+                // Refresh status on the way back from Settings (banner follows the exemption)
                 bgRisk = !BgGuard.batteryExempt(context) || !Prefs.bgSetupDone(context)
-                // Stale/phansi downloads ko dhakka — app khula hai to escort-FGS allowed
-                // hai; ENQUEUED job foran chalegi + worker apna FGS-lock le lega
-                // ("app open pe bhi start nahi hota" ka ilaj).
+                // Update the badge on return from the Connect screen
+                ttConnected = tiktokConnected(context)
+                // Nudge stale/stuck downloads — with the app open the escort FGS is allowed,
+                // so an ENQUEUED job runs immediately and the worker takes its own FGS lock
+                // (the cure for "it won't start even with the app open").
                 EscortService.kickIfNeeded(context)
                 scope.launch {
                     delay(400)
@@ -289,7 +311,7 @@ fun Home(activity: ComponentActivity) {
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 14.dp)
     ) {
         item {
-            // Riplox-style home header: ⓘ corner pe, logo + naam CENTER me thora niche
+            // Riplox-style home header: ⓘ in the corner, logo + name CENTRED just below
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 IconButton(onClick = { showAbout = true }) {
                     Icon(Icons.Outlined.Info, contentDescription = "About", tint = Color(0xFF9AA6B8))
@@ -309,6 +331,136 @@ fun Home(activity: ComponentActivity) {
                 )
             }
             Spacer(Modifier.height(28.dp))
+        }
+
+        // ---- Update notice (Play FLEXIBLE "restart to finish" / GitHub new release) ----
+        updateNotice?.let { n ->
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF14251F))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            n.title,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFFDDE4EF)
+                        )
+                        Text(n.body, fontSize = 12.sp, color = Color(0xFF9AA6B8))
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Button(onClick = n.onClick, modifier = Modifier.weight(1f)) { Text(n.cta) }
+                            Spacer(Modifier.width(8.dp))
+                            TextButton(onClick = { updateNotice = null }) { Text("Later", fontSize = 13.sp) }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+            }
+        }
+
+        // ---- Connect TikTok (login/cookies) — private / region-locked / age-restricted ----
+        item {
+            if (ttConnected) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF10251A))
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "✓ TikTok connected",
+                                color = Color(0xFF7FD1A0),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                "🔒 Your login is safe — saved only on this phone",
+                                color = Color(0xFF6E8B7C),
+                                fontSize = 10.5.sp
+                            )
+                        }
+                        // Re-login (expired session / account switch). Cookies are NOT deleted —
+                        // the login is durable; this only refreshes or switches it.
+                        TextButton(onClick = {
+                            try {
+                                context.startActivity(
+                                    Intent(context, CookieLoginActivity::class.java)
+                                        .putExtra("site", "tiktok")
+                                        .putExtra("label", "TikTok")
+                                )
+                            } catch (_: Exception) {
+                            }
+                        }) { Text("Re-login", fontSize = 13.sp) }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Use my login for downloads",
+                                color = Color(0xFFB6C6D6),
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                if (useLogin) "Needed for private & region-locked videos"
+                                else "Guest mode — public videos only",
+                                color = Color(0xFF6E8B7C),
+                                fontSize = 10.5.sp
+                            )
+                        }
+                        Switch(
+                            checked = useLogin,
+                            onCheckedChange = {
+                                useLogin = it
+                                Prefs.setCookiesEnabled(context, it)
+                            }
+                        )
+                    }
+                }
+            } else {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF141B29))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            "🔗 Connect TikTok (optional)",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFFDDE4EF)
+                        )
+                        Text(
+                            "Public videos work without this. Log in once for private, region-locked or age-restricted videos.",
+                            fontSize = 12.sp,
+                            color = Color(0xFF9AA6B8)
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "🔒 100% safe: Riplox never sees or stores your password. You sign in on TikTok's own page, and your login stays only on this phone — never on any server.",
+                            fontSize = 11.sp,
+                            color = Color(0xFF8FA6C4)
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Button(
+                            onClick = {
+                                try {
+                                    context.startActivity(
+                                        Intent(context, CookieLoginActivity::class.java)
+                                            .putExtra("site", "tiktok")
+                                            .putExtra("label", "TikTok")
+                                    )
+                                } catch (_: Exception) {
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Connect TikTok") }
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
         }
 
         // ---- Link input ----
@@ -378,9 +530,9 @@ fun Home(activity: ComponentActivity) {
             Spacer(Modifier.height(18.dp))
         }
 
-        // ---- Background-freeze guard (XOS/Infinix/Tecno waghera) ----
-        // Ye phones background me app FREEZE kar dete hain → share-tile downloads app
-        // khole bina start/complete nahi hotin. Banner + 3-step setup permanent ilaj.
+        // ---- Background-freeze guard (XOS/Infinix/Tecno and similar) ----
+        // These phones FREEZE the app in the background, so share-tile downloads neither
+        // start nor finish unless the app is opened. The banner + 3-step setup fixes it for good.
         if (bgRisk) {
             item {
                 Card(
@@ -549,7 +701,7 @@ fun Home(activity: ComponentActivity) {
         BannerAd()
     }
 
-    // ---- Background-setup dialog (banner + About dono se khulta hai) ----
+    // ---- Background-setup dialog (opens from both the banner and About) ----
     if (showBgSetup) {
         BgSetupDialog {
             showBgSetup = false
@@ -606,8 +758,8 @@ fun Home(activity: ComponentActivity) {
                     )
                     context.startActivity(Intent.createChooser(share, "Share Riplox TT"))
                 }) { Text("Share this app") }
-                // PERMANENT raasta — home banner "Done" ke baad chhup jata hai (Riplox
-                // lesson 2026-07-16: "card nahi dikh raha"), yahan hamesha milega.
+                // The PERMANENT route — the home banner disappears once "Done" is tapped
+                // (users then asked where the card went), but this entry is always here.
                 TextButton(onClick = {
                     showAbout = false
                     showBgSetup = true
@@ -633,9 +785,9 @@ fun Home(activity: ComponentActivity) {
     }
 }
 
-/** 3-step background-setup dialog — Home banner AUR About-sheet dono se khulta hai
- * (banner "Done" ke baad chhup jata hai, About wala raasta HAMESHA rehta). Battery
- * step ka live ✓ status dialog pe wapsi (ON_RESUME) pe refresh hota hai. */
+/** The 3-step background-setup dialog — opens from BOTH the home banner and the About sheet
+ * (the banner disappears after "Done", the About route is ALWAYS there). The battery step's
+ * live ✓ status refreshes when you come back to the dialog (ON_RESUME). */
 @Composable
 fun BgSetupDialog(onClose: () -> Unit) {
     val context = LocalContext.current

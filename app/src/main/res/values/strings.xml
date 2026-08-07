@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">Riplox TT</string>
     <string name="quick_label">Riplox TT</string>
+    <string name="connect_label">Connect TikTok</string>
 </resources>

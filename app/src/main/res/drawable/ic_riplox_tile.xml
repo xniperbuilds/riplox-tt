@@ -17,7 +17,7 @@
                 android:endColor="#0A101B" />
         </aapt:attr>
     </path>
-    <!-- cyan echo (neeche-baaen) -->
+    <!-- cyan echo (lower-left) -->
     <group android:translateX="-2.4" android:translateY="2.4">
         <path android:fillColor="#2BE9E0"
             android:pathData="M45,18 h10 a4,4 0 0 1 4,4 v14 l-18,8 v-22 a4,4 0 0 1 4,-4 z" />

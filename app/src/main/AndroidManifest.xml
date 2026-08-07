@@ -10,11 +10,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <!-- BgGuard Step-1: battery-exemption dialog (ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-         is permission ke BINA silently no-op hota hai — dialog khulta hi nahi (TECNO CLA5
-         pe pakda 2026-07-17). Downloads user-initiated hain = Play acceptable use. -->
+    <!-- BgGuard Step-1: the battery-exemption dialog (ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+         is a silent no-op WITHOUT this permission — the dialog simply never opens (caught on a
+         TECNO CLA5). Downloads here are user-initiated = Play acceptable use. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <!-- Android 8/9 (API<29) gallery-save ke liye — 10+ pe MediaStore, permission ki zaroorat nahi -->
+    <!-- For gallery saves on Android 8/9 (API<29) — 10+ uses MediaStore and needs no permission -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
@@ -30,10 +30,12 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.XniperDownloader">
 
-        <!-- AdMob App ID (real — AdMob console). Ye + Ads.kt ki 2 ad-unit IDs. -->
+        <!-- AdMob App ID — supplied by build.gradle.kts (release = the real one, qa = Google's
+             TEST one). The ad-unit ids live there too, in BuildConfig (Ads.kt reads them) —
+             these used to be swapped BY HAND in three places, which is no longer possible. -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-8029174313177489~6045986402" />
+            android:value="${admobAppId}" />
 
         <activity
             android:name=".MainActivity"
@@ -66,13 +68,24 @@
             </intent-filter>
         </activity>
 
-        <!-- Fail-notif ka "Copy link" action -->
+        <!-- Connect TikTok — in-app WebView login (the cookies never leave the phone).
+             configChanges keeps the WebView alive across rotation/keyboard changes so a
+             half-finished login is not thrown away. -->
+        <activity
+            android:name=".CookieLoginActivity"
+            android:exported="false"
+            android:label="@string/connect_label"
+            android:theme="@style/Theme.XniperDownloader"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- The "Copy link" action on the failure notification -->
         <receiver
             android:name=".CopyLinkReceiver"
             android:exported="false" />
 
-        <!-- AIRLOCK v3 Escort — chhota FGS jo naye download ko uske apne FGS-lock tak
-             protect karta hai (door band hone ke baad ka gap cover) -->
+        <!-- AIRLOCK v3 Escort — a tiny FGS that protects a new download until it holds its
+             own FGS lock (covering the gap after the door closes) -->
         <service
             android:name=".EscortService"
             android:exported="false"

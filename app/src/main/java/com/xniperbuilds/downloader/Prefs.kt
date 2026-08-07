@@ -22,9 +22,17 @@ object Prefs {
     fun lastClip(c: Context): String = sp(c).getString("lastClip", "") ?: ""
     fun setLastClip(c: Context, v: String) = sp(c).edit().putString("lastClip", v).apply()
 
-    /** Background-setup guide (battery + auto-start + recents-lock) user ne Done kiya?
-     * XOS-type phones battery-exempt hone ke BAAD bhi auto-start ke bina freeze karte —
-     * is liye banner exemption se azaad, is flag tak dikhta hai. */
+    /** Has the user finished the background-setup guide (battery + auto-start + recents-lock)?
+     * XOS-style phones still freeze downloads without auto-start EVEN AFTER a battery
+     * exemption, so the banner is independent of that exemption and keeps showing until
+     * this flag is set. */
     fun bgSetupDone(c: Context) = sp(c).getBoolean("bgSetupDone", false)
     fun setBgSetupDone(c: Context, v: Boolean) = sp(c).edit().putBoolean("bgSetupDone", v).apply()
+
+    /** Master switch for Connect TikTok (login/cookies). Default ON — the login only matters
+     * when a video is private / region-locked / age-restricted. OFF means guest mode (public
+     * videos) and is the escape hatch from a bad session. Cookies are only ever sent if some
+     * have been saved. */
+    fun cookiesEnabled(c: Context) = sp(c).getBoolean("cookiesEnabled", true)
+    fun setCookiesEnabled(c: Context, v: Boolean) = sp(c).edit().putBoolean("cookiesEnabled", v).apply()
 }

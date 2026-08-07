@@ -32,8 +32,9 @@ fun mimeForExt(ext: String, audioOnly: Boolean): String = when (ext.lowercase())
     else -> if (audioOnly) "audio/mpeg" else "video/mp4"
 }
 
-/** Chunk-wise copy + har chunk pe onCopy(totalBytesCopied) — save-phase ke "beats".
- * Iske bagair bada file copy watchdog/notif ke liye 100% pe "khamosh maut" tha. */
+/** Chunked copy that calls onCopy(totalBytesCopied) per chunk — the "beats" of the save phase.
+ * Without them, copying a large file looked to the watchdog/notification like a silent death
+ * at 100%. */
 private fun copyChunked(input: java.io.InputStream, out: java.io.OutputStream, onCopy: (Long) -> Unit) {
     val buf = ByteArray(256 * 1024)
     var total = 0L
@@ -107,9 +108,10 @@ fun saveImageToPictures(context: Context, temp: File): String {
 }
 
 /**
- * Public save — HAR Android version pe file mehfooz rahe.
- * API 29+ = MediaStore. API 26–28 = public folder me seedha copy + media scan
- * (WRITE permission na ho to app ke apne external folder me — file phir bhi bachti hai).
+ * Public save — the file survives on EVERY Android version.
+ * API 29+ uses MediaStore. API 26–28 copies straight into the public folder and runs a media
+ * scan (without the WRITE permission it goes to the app's own external folder — the file is
+ * still kept either way).
  */
 fun savePublic(context: Context, temp: File, audioOnly: Boolean, onCopy: (Long) -> Unit = {}): String =
     if (Build.VERSION.SDK_INT >= 29) {
@@ -123,7 +125,7 @@ fun savePublic(context: Context, temp: File, audioOnly: Boolean, onCopy: (Long) 
         )
     }
 
-/** API 26–28: RELATIVE_PATH nahi hota — file copy + MediaScanner. Kabhi delete-without-copy nahi. */
+/** API 26–28: there is no RELATIVE_PATH — copy the file, then MediaScanner. Never delete without copying. */
 @Suppress("DEPRECATION")
 fun saveLegacyPublic(context: Context, temp: File, publicDirType: String, onCopy: (Long) -> Unit = {}): String {
     val canWrite = ContextCompat.checkSelfPermission(
@@ -132,7 +134,7 @@ fun saveLegacyPublic(context: Context, temp: File, publicDirType: String, onCopy
     val dir = if (canWrite) {
         File(Environment.getExternalStoragePublicDirectory(publicDirType), BRAND_DIR)
     } else {
-        // Permission nahi mili → app ka apna external folder (file manager se milta hai, delete nahi hoti)
+        // Permission denied → the app's own external folder (reachable from a file manager, not deleted)
         File(context.getExternalFilesDir(publicDirType), BRAND_DIR)
     }
     dir.mkdirs()

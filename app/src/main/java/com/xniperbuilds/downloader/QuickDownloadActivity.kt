@@ -6,12 +6,16 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 
 /**
- * "Riplox TT" share tile — ZERO popup, zero friction (TT app se share → seedha download).
+ * The "Riplox TT" share tile — ZERO popups, zero friction (share from the TT app and the
+ * download just starts).
  *
  * AIRLOCK pattern (double-door) v2:
- *  Door 1: ye invisible activity khulti hai → app FOREGROUND me (system download rok nahi sakta)
- *  Chamber: link queue me → intezar sirf itna ke worker apni FOREGROUND-SERVICE lock laga le
- *  Door 2: lock CONFIRM hote hi activity band. Net na ho to 10s me band + "queued" message.
+ *  Door 1: this invisible activity opens → the app is in the FOREGROUND, so the system
+ *          cannot block the download.
+ *  Chamber: the link goes onto the queue → we wait only long enough for the worker to take
+ *          its own FOREGROUND-SERVICE lock.
+ *  Door 2: the moment that lock is CONFIRMED, the activity closes. With no network it
+ *          closes after 10s with a "queued" message instead.
  */
 class QuickDownloadActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -26,7 +30,7 @@ class QuickDownloadActivity : ComponentActivity() {
             return
         }
 
-        // TT-LOCK — ye app sirf TikTok links download karti hai
+        // TT-LOCK — this app only downloads TikTok links
         if (!isTikTokUrl(link)) {
             Toast.makeText(this, "Riplox TT downloads TT videos only", Toast.LENGTH_SHORT).show()
             finish()
@@ -35,11 +39,11 @@ class QuickDownloadActivity : ComponentActivity() {
 
         val workId = DownloadQueue.enqueue(this, link, Prefs.audioMode(this))
         DownloadQueue.awaitStart(this, workId) { started ->
-            // Background-setup adhoora ho to XOS-type phone download beech me freeze kar
-            // sakta hai — share flow me friction ZERO rakhni hai, is liye sirf hint-toast.
+            // If background setup is incomplete an XOS-style phone can freeze the download
+            // part-way — but the share flow must stay friction-free, so this is only a hint toast.
             val setupOk = BgGuard.batteryExempt(this) && Prefs.bgSetupDone(this)
             val msg = when {
-                started && setupOk -> "⬇ Download started — progress in notification"
+                started && setupOk -> "⬇ Downloading — see notification. Not starting? Open Riplox TT once."
                 started -> "⬇ Started — open Riplox TT once → “Fix background downloads” (so it never pauses)"
                 else -> "⬇ Queued — starts as soon as network allows"
             }

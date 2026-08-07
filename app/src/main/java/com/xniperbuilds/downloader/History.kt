@@ -64,8 +64,9 @@ object History {
     fun add(c: Context, url: String, title: String, platform: String, location: String, isAudio: Boolean) {
         val now = System.currentTimeMillis()
         val list = read(c)
-        // id STRICTLY unique rakho: 3 parallel downloads ek hi millisecond me finish ho sakte hain
-        // (tab same id → LazyColumn key crash + delete dono ko uda deta). Newest id se +1.
+        // Keep the id STRICTLY unique: three parallel downloads can finish in the same
+        // millisecond, and a shared id crashes the LazyColumn key and makes one delete remove
+        // both. Hence: newest id + 1.
         val id = maxOf(now, (list.firstOrNull()?.id ?: 0L) + 1)
         list.add(0, DownloadRecord(id, title, platform, url, location, isAudio, now))
         write(c, list)

@@ -1,0 +1,6 @@
+<resources>
+    <!-- The QA build (.qa applicationId) installs ALONGSIDE the Play one, so it carries a
+         different name to keep the two apart in the launcher. -->
+    <string name="app_name">Riplox TT QA</string>
+    <string name="quick_label">Riplox TT QA</string>
+</resources>
