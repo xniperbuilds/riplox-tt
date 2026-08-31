@@ -33,7 +33,10 @@ Paste a link or share from the app — the no-watermark video lands straight in 
 - ⚡ **Zero-tap share** — share from the TikTok app and the download just starts
 - 🔔 **Live notification** — real progress, cancel anytime; downloads survive app-close & reboot with auto-retry
 - ♻️ **Failed? One tap** — every failure gives you **Copy link** and **Retry**, right where you are
-- 🕘 **Recent list** — tap to play, copy link, download again, or delete
+- 👀 **Watch a shared download** — sharing a link opens a small sheet with the thumbnail, title, live progress and **Cancel**, so you never have to guess whether it started
+- 📥 **Paste several links at once** — they all queue, not just the first
+- 🖼️ **Photo & slideshow posts** — a carousel saves every image, into `Pictures/RiploxTT`
+- 🕘 **Recent list** — search it, tap to play, copy link, download again, delete one or clear them all
 - 📁 **Straight to your gallery** — video in `Movies/RiploxTT`, audio in `Music/RiploxTT`
 - 🔓 **No account needed** — public videos download straight away. **Connect TikTok** is optional, for private / region-locked / age-restricted videos, and can be switched off again without logging out
 - 🎨 **Clean AMOLED-black UI** — Material 3, one calm screen, no clutter
@@ -51,6 +54,8 @@ Paste a link or share from the app — the no-watermark video lands straight in 
 Riplox TT is a native Jetpack Compose app that does **one thing well**: grab a TikTok video (or its audio) cleanly and quickly, with a background queue that doesn't give up if your connection hiccups.
 
 It reads a video's data itself, using a desktop user agent, and falls back to the phone's own WebView if TikTok asks for a JS challenge. That matters: TikTok only serves video data to a request that looks like a desktop browser, and [yt-dlp](https://github.com/yt-dlp/yt-dlp) on Android cannot imitate one (the bundled `youtubedl-android` ships without `curl_cffi`, so impersonation is unavailable — the same wall [yt-dlp#15653](https://github.com/yt-dlp/yt-dlp/issues/15653) describes). yt-dlp + FFmpeg are still bundled and still used — as a fallback extractor and for MP3 conversion — and the engine updates itself quietly so links keep working.
+
+From **1.1.5** the first step — turning a link into the video's addresses — runs on a small XniperBuilds lookup service instead of on the phone, because TikTok serves the clean rendition only to a request the phone is not allowed to make (browser JavaScript may not set `sec-fetch-mode: navigate`). Measured over five fresh installs, the on-device routes returned the clean video once; the other four took about 55 seconds each and returned the watermarked one. Only the **link** is sent, the service stores and logs nothing, the video itself is downloaded by your phone directly from TikTok, and if the service cannot be reached the app falls back to the on-device routes described above. See the [privacy policy](https://xniperbuilds.com/riplox-tt/privacy/).
 
 Transfers resume from where they stopped, so a dropped connection on a big video costs you nothing.
 

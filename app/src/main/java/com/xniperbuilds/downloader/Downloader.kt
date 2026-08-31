@@ -16,6 +16,22 @@ fun extractUrl(text: String?): String? {
     return found.trimEnd('.', ',', ')', ']', '!', '?', ';', '"', '\'')
 }
 
+/**
+ * EVERY http(s) link in the pasted text, in order, de-duplicated — so a user can paste a whole
+ * batch at once instead of one link at a time.
+ *
+ * ⚠️ `extractUrl` (singular) is deliberately left alone: the share tile receives exactly one
+ * link and must keep behaving as if it does.
+ */
+fun extractUrls(text: String?): List<String> {
+    if (text.isNullOrBlank()) return emptyList()
+    return Regex("https?://\\S+").findAll(text)
+        .map { it.value.trimEnd('.', ',', ')', ']', '!', '?', ';', '"', '\'') }
+        .filter { it.isNotBlank() }
+        .distinct()
+        .toList()
+}
+
 /** TT-LOCK — Riplox TT only accepts TikTok links (for both Play policy and product scope).
  * Every variant works: www./m./vm./vt. tiktok.com. */
 fun isTikTokUrl(url: String?): Boolean {

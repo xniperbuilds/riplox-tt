@@ -18,8 +18,8 @@ import zipfile
 AAB = sys.argv[1] if len(sys.argv) > 1 else ""
 
 # --- per-release settings: BUMP THESE ---------------------------------------
-VERSION = b"1.1.4"       # the versionName that MUST be in this bundle
-PREV_VERSION = b"1.1.3"  # the previous one, which must NOT be (stale-build guard)
+VERSION = b"1.1.5"       # the versionName that MUST be in this bundle
+PREV_VERSION = b"1.1.4"  # the previous one, which must NOT be (stale-build guard)
 
 # --- AdMob (record: .xniper-secrets\admob-riploxtt.txt) ---------------------
 REAL_APP = b"ca-app-pub-8029174313177489~6045986402"
@@ -42,6 +42,12 @@ WANT_DEX = [
     (REAL_BANNER, "real banner id"),
     (REAL_INTER, "real interstitial id"),
     (b"TikTokExtractor", "TikTok extractor (the v1.1.3 download fix)"),
+    # ⚠️ v1.1.5: the Worker URL and its header come from local.properties, so a build made on a
+    # machine without them compiles and installs perfectly and then quietly falls back to the
+    # on-device routes — which return TikTok's WATERMARKED rendition. Nothing crashes; the app
+    # is simply worth less. That failure has to be caught here, not by a user.
+    (b"riplox-tt-extract", "extractor Worker URL"),
+    (b"X-Riplox-App", "Worker app-token header"),
     (b"appupdate", "Play In-App Updates library"),
 ]
 

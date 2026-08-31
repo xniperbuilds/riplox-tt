@@ -23,3 +23,6 @@ build/
 /launch-pack/
 /Play Launch Pack/
 _build_log.txt
+
+# extractor service - not part of the public app repo
+/server/

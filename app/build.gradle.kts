@@ -5,6 +5,16 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// Extractor Worker — URL and app token come from local.properties (gitignored), the same way
+// the signing key does. The token is a courtesy gate on a public endpoint, not a secret the
+// app can actually keep; it stays out of the repo all the same.
+// A build without them still works: the app just skips the Worker and uses the on-device routes.
+val riploxProps = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+val ttWorkerUrl: String = riploxProps.getProperty("TT_WORKER_URL") ?: ""
+val ttWorkerToken: String = riploxProps.getProperty("TT_WORKER_TOKEN") ?: ""
+
 android {
     namespace = "com.xniperbuilds.downloader"
     compileSdk {
@@ -38,8 +48,8 @@ android {
         // when urgent). There is deliberately no update check on sideload/GitHub builds.
         // ⚠️ Play policy: an app installed from Play may not self-update or pull an APK,
         // so this path is gated on the install source (AppUpdates.kt).
-        versionCode = 6
-        versionName = "1.1.4"
+        versionCode = 7
+        versionName = "1.1.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -49,6 +59,9 @@ android {
         manifestPlaceholders["admobAppId"] = "ca-app-pub-8029174313177489~6045986402"
         buildConfigField("String", "AD_BANNER_ID", "\"ca-app-pub-8029174313177489/7721461931\"")
         buildConfigField("String", "AD_INTERSTITIAL_ID", "\"ca-app-pub-8029174313177489/8209115310\"")
+
+        buildConfigField("String", "TT_WORKER_URL", "\"$ttWorkerUrl\"")
+        buildConfigField("String", "TT_WORKER_TOKEN", "\"$ttWorkerToken\"")
 
         ndk {
             // Launch: arm64 + 32-bit (so it still installs on older phones)

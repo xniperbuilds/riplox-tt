@@ -38,9 +38,28 @@ object Ads {
     // How many completed downloads between full-screen ads
     private const val SHOW_EVERY_N = 2
 
+    /**
+     * A hard floor between two full-screen ads, on top of the every-2 rule.
+     *
+     * ⚠️ The every-2 counter alone is NOT enough once a batch of links can be queued at once:
+     * five downloads finishing within a few seconds of each other would fire two interstitials
+     * back to back, and AdMob disallows exactly that ("Placing an interstitial ad immediately
+     * after another interstitial ad was shown to and closed by the user"). One timestamp,
+     * shared by every full-screen entry point, is what actually prevents it.
+     */
+    private const val MIN_GAP_MS = 60_000L
+
     private var interstitial: InterstitialAd? = null
     private var loading = false
     private var completedCount = 0
+    private var lastFullScreenAt = 0L
+
+    private fun canShowFullScreen(): Boolean =
+        android.os.SystemClock.elapsedRealtime() - lastFullScreenAt >= MIN_GAP_MS
+
+    private fun markFullScreenShown() {
+        lastFullScreenAt = android.os.SystemClock.elapsedRealtime()
+    }
 
     fun preloadInterstitial(ctx: Context) {
         if (!ENABLED || interstitial != null || loading) return
@@ -62,7 +81,7 @@ object Ads {
         if (!ENABLED) return
         completedCount++
         val ad = interstitial
-        if (completedCount % SHOW_EVERY_N != 0 || ad == null) {
+        if (completedCount % SHOW_EVERY_N != 0 || ad == null || !canShowFullScreen()) {
             preloadInterstitial(activity)
             return
         }
@@ -70,6 +89,43 @@ object Ads {
             override fun onAdDismissedFullScreenContent() { interstitial = null; preloadInterstitial(activity) }
             override fun onAdFailedToShowFullScreenContent(e: AdError) { interstitial = null; preloadInterstitial(activity) }
         }
+        markFullScreenShown()
+        ad.show(activity)
+    }
+
+    /**
+     * The share sheet's "Open app" — the ONE moment in the share flow where a full-screen ad is
+     * legitimate, because the user chose to navigate *into* the app, which is a break between
+     * pages of app content.
+     *
+     * Everything else in that flow is explicitly disallowed and must stay that way:
+     *   · the sheet appearing            = app load          ("Do not place interstitial ads on
+     *                                                          app load")
+     *   · the download finishing         = the user did not act ("show unexpectedly, typically
+     *                                                          when the user has chosen to do
+     *                                                          something else")
+     *   · opening the saved file         = leaving the app   (exit)
+     *
+     * `completedCount` is deliberately SHARED with onDownloadComplete, so the "no more than one
+     * interstitial after every two user actions" limit holds across both entry points instead of
+     * each keeping its own count.
+     *
+     * Navigation is never delayed for an ad: with nothing ready this calls `then` immediately.
+     */
+    fun onEnterAppFromShare(activity: Activity, then: () -> Unit) {
+        if (!ENABLED) { then(); return }
+        completedCount++
+        val ad = interstitial
+        if (completedCount % SHOW_EVERY_N != 0 || ad == null || !canShowFullScreen()) {
+            preloadInterstitial(activity)
+            then()
+            return
+        }
+        ad.fullScreenContentCallback = object : FullScreenContentCallback() {
+            override fun onAdDismissedFullScreenContent() { interstitial = null; then() }
+            override fun onAdFailedToShowFullScreenContent(e: AdError) { interstitial = null; then() }
+        }
+        markFullScreenShown()
         ad.show(activity)
     }
 }

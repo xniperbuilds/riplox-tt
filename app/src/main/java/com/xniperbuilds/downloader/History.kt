@@ -74,6 +74,31 @@ object History {
 
     fun all(c: Context): List<DownloadRecord> = read(c)
 
+    /**
+     * Every record and its file. One write instead of N, and the records go FIRST — if a file
+     * delete throws half way through, the user does not end up with a list of entries that all
+     * point at files that may or may not still exist.
+     * Returns how many files were actually removed (records are always cleared).
+     */
+    @Synchronized
+    fun deleteAll(c: Context): Int {
+        val list = read(c)
+        write(c, emptyList())
+        var removed = 0
+        list.forEach { item ->
+            try {
+                if (item.location.startsWith("content://")) {
+                    c.contentResolver.delete(android.net.Uri.parse(item.location), null, null)
+                } else {
+                    File(item.location).delete()
+                }
+                removed++
+            } catch (_: Exception) {
+            }
+        }
+        return removed
+    }
+
     /** Record + asli file dono delete (best-effort — file pehle se gayi ho to bhi record hat jata). */
     @Synchronized
     fun delete(c: Context, id: Long) {

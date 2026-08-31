@@ -198,7 +198,16 @@ class DownloadWorker(
                                     launch(Dispatchers.IO) {
                                         if (thumbUrl != null && bmp == null) bmp = loadThumb(thumbUrl)
                                         safeNotify(nm, progId, buildNotif("⬇ $title", "downloading…", true, bmp))
-                                        setProgressAsync(workDataOf("title" to title, "fg" to fgLocked))
+                                        // The thumb URL rides along so the share sheet can show
+                                        // the video being downloaded — it has no other source
+                                        // for it, since the sheet never runs the extractor.
+                                        setProgressAsync(
+                                            workDataOf(
+                                                "title" to title,
+                                                "thumb" to (thumbUrl ?: ""),
+                                                "fg" to fgLocked
+                                            )
+                                        )
                                     }
                                 }
                             ) { p ->
@@ -265,17 +274,14 @@ class DownloadWorker(
             // bundled engine is old. On the first failure, update the engine on the NIGHTLY
             // channel and let WorkManager retry with the fresh one: a day-1 install heals
             // itself, with no visible failure for the user (the second attempt works).
-            val looksStale = runAttemptCount == 0 && listOf(
-                "no video formats", "unable to extract", "not available",
-                "confirm you are on the latest", "requested format", "no formats"
-            ).any { raw.contains(it, ignoreCase = true) }
+            // The stale-engine test now lives in Engine.looksStale and covers a wider set of
+            // wordings — the old fixed list meant a rewording on yt-dlp's side silently turned
+            // self-heal off. It also gets TWO attempts rather than one: a missed self-heal costs
+            // the user a failed download, an unnecessary one costs a few seconds.
+            val looksStale = runAttemptCount <= 1 && Engine.looksStale(raw)
             if (looksStale) {
-                try {
-                    withContext(NonCancellable + Dispatchers.IO) {
-                        YoutubeDL.getInstance().updateYoutubeDL(ctx, YoutubeDL.UpdateChannel.NIGHTLY)
-                    }
-                    Log.i("RiploxTT", "engine updated (nightly) after extractor fail — retrying")
-                } catch (ue: Exception) { Log.w("RiploxTT", "engine update failed", ue) }
+                withContext(NonCancellable) { Engine.update(ctx) }
+                Log.i("RiploxTT", "engine update attempted after extractor fail — retrying")
                 Result.retry()
             } else if (runAttemptCount < MAX_ATTEMPTS - 1) {
                 Result.retry()

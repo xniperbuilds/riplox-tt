@@ -57,7 +57,6 @@
             android:label="@string/quick_label"
             android:theme="@style/Theme.XniperDownloader.Transparent"
             android:excludeFromRecents="true"
-            android:noHistory="true"
             android:taskAffinity=""
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
             android:windowSoftInputMode="adjustResize">

@@ -139,6 +139,8 @@ fun Home(activity: ComponentActivity) {
     var quality by remember { mutableStateOf(Prefs.quality(context)) }
     var audioMode by remember { mutableStateOf(Prefs.audioMode(context)) }
     var history by remember { mutableStateOf(History.all(context)) }
+    var histQuery by remember { mutableStateOf("") }
+    var confirmClearHistory by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(FailedStore.all(context)) }
     var showAbout by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf<DownloadRecord?>(null) }
@@ -187,12 +189,16 @@ fun Home(activity: ComponentActivity) {
     }
 
     fun startDownload() {
-        val link = extractUrl(url)
+        // Paste one link or twenty — every TT link in the text gets queued. Anything that is
+        // not a TT link is counted and reported rather than silently dropped.
+        val links = extractUrls(url)
+        val tt = links.filter { isTikTokUrl(it) }
+        val skipped = links.size - tt.size
         when {
-            link.isNullOrBlank() -> toast("Paste a TT link first")
-            !isTikTokUrl(link) -> toast("Only TT links work here — paste a TT video link")
-            else -> {
-                val id = DownloadQueue.enqueue(context, link, audioMode)
+            links.isEmpty() -> toast("Paste a TT link first")
+            tt.isEmpty() -> toast("Only TT links work here — paste a TT video link")
+            tt.size == 1 -> {
+                val id = DownloadQueue.enqueue(context, tt.first(), audioMode)
                 DownloadQueue.awaitStart(activity, id) { started ->
                     Toast.makeText(
                         context,
@@ -201,6 +207,14 @@ fun Home(activity: ComponentActivity) {
                         Toast.LENGTH_SHORT
                     ).show()
                 }
+                url = ""
+            }
+            else -> {
+                tt.forEach { DownloadQueue.enqueue(context, it, audioMode) }
+                toast(
+                    "⬇ ${tt.size} downloads queued" +
+                        if (skipped > 0) " · $skipped non-TT link skipped" else ""
+                )
                 url = ""
             }
         }
@@ -226,22 +240,18 @@ fun Home(activity: ComponentActivity) {
         }
     }
 
-    // Engine auto-update — once a day, and never while a download is running
+    // Engine auto-update — once a day, never while a download is running. The logic moved into
+    // Engine so the share tile runs the SAME check: a user who only ever shares from TikTok
+    // never opens this screen, and used to go months without an engine update.
     LaunchedEffect(Unit) {
+        // Earn TikTok's ttwid while the user is looking at the home screen, so their first
+        // download does not have to. No-op once the jar is warm.
         try {
-            val today = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
-            if (Prefs.lastUpdateDay(context) != today) {
-                val busy = withContext(Dispatchers.IO) { DownloadQueue.hasActive(context) }
-                if (!busy) {
-                    withContext(Dispatchers.IO) {
-                        // NIGHTLY — TikTok keeps changing its extractor/API, and fixes land in
-                        // yt-dlp nightly first (the stable channel ran weeks behind → "No video
-                        // formats" / "unable to extract" on a fresh install).
-                        YoutubeDL.getInstance().updateYoutubeDL(context, YoutubeDL.UpdateChannel.NIGHTLY)
-                    }
-                    Prefs.setLastUpdateDay(context, today)
-                }
-            }
+            TtCookiePrimer.primeIfNeeded(activity)
+        } catch (_: Exception) {
+        }
+        try {
+            Engine.dailyIfDue(context)
         } catch (_: Exception) {
         }
     }
@@ -311,8 +321,12 @@ fun Home(activity: ComponentActivity) {
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 14.dp)
     ) {
         item {
-            // Riplox-style home header: ⓘ in the corner, logo + name CENTRED just below
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            // Riplox-style home header: ⓘ in the corner, logo + name CENTRED just below.
+            // The extra top padding keeps ⓘ clear of the status bar / punch-hole camera.
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
                 IconButton(onClick = { showAbout = true }) {
                     Icon(Icons.Outlined.Info, contentDescription = "About", tint = Color(0xFF9AA6B8))
                 }
@@ -497,9 +511,12 @@ fun Home(activity: ComponentActivity) {
 
         // ---- Quality + MP3 chips ----
         item {
+            // ⚠️ Five chips did not fit the width, so the last one wrapped and "MP3" rendered as
+            // "MP" over "3". softWrap=false stops a label breaking mid-word, and the tighter gap
+            // is what actually makes all five fit at 375dp.
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 listOf("best" to "Best", "1080" to "1080p", "720" to "720p", "480" to "480p").forEach { (v, label) ->
                     FilterChip(
@@ -509,7 +526,7 @@ fun Home(activity: ComponentActivity) {
                             quality = v
                             Prefs.setQuality(context, v)
                         },
-                        label = { Text(label, fontSize = 13.sp) }
+                        label = { Text(label, fontSize = 13.sp, maxLines = 1, softWrap = false) }
                     )
                 }
                 FilterChip(
@@ -518,7 +535,7 @@ fun Home(activity: ComponentActivity) {
                         audioMode = !audioMode
                         Prefs.setAudioMode(context, audioMode)
                     },
-                    label = { Text("MP3", fontSize = 13.sp) }
+                    label = { Text("MP3", fontSize = 13.sp, maxLines = 1, softWrap = false) }
                 )
             }
             Spacer(Modifier.height(14.dp))
@@ -607,6 +624,20 @@ fun Home(activity: ComponentActivity) {
                                 refresh()
                                 toast("⬇ Retrying…")
                             }) { Text("Retry") }
+                            // Plain Retry runs the SAME engine that just failed. This is the
+                            // one-tap answer for a user who cannot be expected to know that an
+                            // engine exists, let alone that it went stale.
+                            TextButton(onClick = {
+                                toast("Updating engine…")
+                                scope.launch {
+                                    Engine.update(context)
+                                    FailedStore.remove(context, f.id)
+                                    val id = DownloadQueue.enqueue(context, f.link, f.isAudio)
+                                    DownloadQueue.awaitStart(activity, id) { }
+                                    refresh()
+                                    toast("⬇ Retrying with a fresh engine…")
+                                }
+                            }) { Text("Update & retry") }
                         }
                     }
                 }
@@ -616,9 +647,37 @@ fun Home(activity: ComponentActivity) {
 
         // ---- Recent ----
         item {
-            Text("Recent", style = MaterialTheme.typography.titleMedium, color = Color(0xFFDDE4EF))
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Recent",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color(0xFFDDE4EF),
+                    modifier = Modifier.weight(1f)
+                )
+                if (history.isNotEmpty()) {
+                    TextButton(onClick = { confirmClearHistory = true }) {
+                        Text("Delete all", color = Color(0xFF9AA6B8), fontSize = 13.sp)
+                    }
+                }
+            }
+            // The search box only appears once the list is long enough to need one — a filter
+            // over three items is clutter, not a feature.
+            if (history.size >= 5) {
+                OutlinedTextField(
+                    value = histQuery,
+                    onValueChange = { histQuery = it },
+                    singleLine = true,
+                    placeholder = {
+                        Text("Search downloads", color = Color(0xFF5B6E8C), fontSize = 13.sp)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
             Spacer(Modifier.height(8.dp))
         }
+        val shownHistory =
+            if (histQuery.isBlank()) history
+            else history.filter { it.title.contains(histQuery.trim(), ignoreCase = true) }
         if (history.isEmpty()) {
             item {
                 Text(
@@ -628,8 +687,19 @@ fun Home(activity: ComponentActivity) {
                     modifier = Modifier.padding(vertical = 18.dp)
                 )
             }
+        } else if (shownHistory.isEmpty()) {
+            // A search that matches nothing must say so — an empty list under a filled search
+            // box reads as "your downloads are gone".
+            item {
+                Text(
+                    "Nothing matches \"${histQuery.trim()}\".",
+                    color = Color(0xFF5B6E8C),
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(vertical = 18.dp)
+                )
+            }
         }
-        items(history, key = { it.id }) { r ->
+        items(shownHistory, key = { it.id }) { r ->
             var menuOpen by remember { mutableStateOf(false) }
             Row(
                 modifier = Modifier
@@ -728,6 +798,34 @@ fun Home(activity: ComponentActivity) {
         )
     }
 
+    // ---- "Delete all" confirmation ----
+    // The files go too, and that cannot be undone — so it asks first, and says exactly how
+    // many things it is about to remove.
+    if (confirmClearHistory) {
+        AlertDialog(
+            onDismissRequest = { confirmClearHistory = false },
+            title = { Text("Delete all downloads?") },
+            text = {
+                Text(
+                    "This removes ${history.size} item${if (history.size == 1) "" else "s"} from " +
+                        "Recent and deletes the saved files. This can't be undone."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val removed = History.deleteAll(context)
+                    history = History.all(context)
+                    histQuery = ""
+                    confirmClearHistory = false
+                    toast("Deleted $removed file${if (removed == 1) "" else "s"}")
+                }) { Text("Delete all") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClearHistory = false }) { Text("Cancel") }
+            }
+        )
+    }
+
     // ---- About sheet ----
     if (showAbout) {
         val version = remember {
@@ -751,6 +849,33 @@ fun Home(activity: ComponentActivity) {
                     fontSize = 13.sp
                 )
                 Spacer(Modifier.height(14.dp))
+
+                // ---- ENGINE STATUS + MANUAL UPDATE ----------------------------------------
+                // Until now the app had no manual update anywhere: a user whose MP3s had
+                // quietly stopped working had literally nothing to press, and no way to see
+                // whether the engine was fresh or months old.
+                var engineLine by remember { mutableStateOf(Engine.statusLine(context)) }
+                var engineBusy by remember { mutableStateOf(false) }
+                Text(engineLine, color = Color(0xFF9AA6B8), fontSize = 13.sp)
+                TextButton(
+                    enabled = !engineBusy,
+                    onClick = {
+                        engineBusy = true
+                        scope.launch {
+                            val outcome = Engine.update(context)
+                            engineLine = Engine.statusLine(context)
+                            engineBusy = false
+                            toast(
+                                when (outcome) {
+                                    Engine.Outcome.UPDATED -> "Engine updated"
+                                    Engine.Outcome.ALREADY_LATEST -> "Already the latest engine"
+                                    Engine.Outcome.FAILED -> "Update failed — check your internet"
+                                }
+                            )
+                        }
+                    }
+                ) { Text(if (engineBusy) "Updating…" else "Update engine now") }
+
                 TextButton(onClick = {
                     val share = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(
                         Intent.EXTRA_TEXT,

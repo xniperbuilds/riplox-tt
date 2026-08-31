@@ -53,6 +53,34 @@ import com.xniperbuilds.downloader.ui.theme.XniperDownloaderTheme
  * fingerprint gate — see TikTokExtractor.kt). This is for private / region-locked /
  * age-restricted videos.
  */
+/**
+ * A WebView that asks the keyboard NOT to use a composing region.
+ *
+ * ⚠️ THE BUG THIS FIXES, reported from real use: typing `xniper` into TikTok's login field
+ * produced `repinx` — every new character landed at the start. The device is en-US (so not an
+ * RTL layout issue) and the keyboard is SwiftKey, which keeps the word you are typing in the
+ * IME's *composing* region and rewrites it on each keystroke. TikTok's login input is a
+ * JS-controlled field that re-sets its value and puts the caret back to 0 on every change, so
+ * each rewrite got inserted at the front. Neither side is wrong on its own; together they
+ * reverse the word.
+ *
+ * NO_SUGGESTIONS makes IMEs commit characters directly instead of composing them, which
+ * removes the rewrite that the page keeps mishandling. Losing autocorrect inside a login form
+ * costs nothing — you do not want it there anyway.
+ */
+private class NoComposeWebView(context: android.content.Context) : WebView(context) {
+    override fun onCreateInputConnection(
+        outAttrs: android.view.inputmethod.EditorInfo
+    ): android.view.inputmethod.InputConnection? {
+        val ic = super.onCreateInputConnection(outAttrs)
+        outAttrs.inputType = outAttrs.inputType or
+            android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        outAttrs.imeOptions = outAttrs.imeOptions or
+            android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+        return ic
+    }
+}
+
 class CookieLoginActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -149,7 +177,7 @@ class CookieLoginActivity : ComponentActivity() {
                         AndroidView(
                             modifier = Modifier.weight(1f).fillMaxWidth(),
                             factory = { ctx ->
-                                WebView(ctx).apply {
+                                NoComposeWebView(ctx).apply {
                                     val cm = CookieManager.getInstance()
                                     cm.setAcceptCookie(true)
                                     cm.setAcceptThirdPartyCookies(this, true)
@@ -196,6 +224,70 @@ class CookieLoginActivity : ComponentActivity() {
                                             url?.let {
                                                 currentHost = android.net.Uri.parse(it).host ?: currentHost
                                             }
+                                        }
+
+                                        /**
+                                         * ⚠️ THE REVERSED-TYPING FIX. Reported from real use:
+                                         * typing `xniper` produced `repinx`.
+                                         *
+                                         * The first attempt blamed the keyboard (SwiftKey's
+                                         * composing region) and asked the IME for
+                                         * NO_SUGGESTIONS. It did not help — so the cause is not
+                                         * the keyboard. What is left is the page: the login
+                                         * field rewrites its own value on every keystroke and
+                                         * leaves the caret at position 0, so each new character
+                                         * lands in front of the last one.
+                                         *
+                                         * Rather than guess at TikTok's internals, this fixes
+                                         * the symptom directly and generically: after any input
+                                         * event, put the caret back at the end. The setTimeout
+                                         * matters — it has to run AFTER the page's own handler,
+                                         * which is the thing moving it.
+                                         */
+                                        override fun onPageFinished(view: WebView, url: String?) {
+                                            view.evaluateJavascript(
+                                                """
+                                                (function(){
+                                                  if (window.__rxCaretFix) return;
+                                                  window.__rxCaretFix = 1;
+
+                                                  // The keyboard capitalises the first letter of
+                                                  // a field by default, so an email came out as
+                                                  // "Xniper...". Harmless on most sites, wrong
+                                                  // on a login form — say so explicitly.
+                                                  function tame(el){
+                                                    try {
+                                                      el.setAttribute('autocapitalize','none');
+                                                      el.setAttribute('autocorrect','off');
+                                                      el.setAttribute('spellcheck','false');
+                                                    } catch (_) {}
+                                                  }
+                                                  Array.prototype.forEach.call(
+                                                    document.querySelectorAll('input,textarea'), tame
+                                                  );
+                                                  document.addEventListener('focusin', function(e){
+                                                    var t = e.target;
+                                                    if (t && /^(INPUT|TEXTAREA)$/.test(t.tagName || '')) tame(t);
+                                                  }, true);
+
+                                                  document.addEventListener('input', function(e){
+                                                    var t = e.target;
+                                                    if (!t) return;
+                                                    var tag = (t.tagName || '').toUpperCase();
+                                                    if (tag !== 'INPUT' && tag !== 'TEXTAREA') return;
+                                                    setTimeout(function(){
+                                                      try {
+                                                        var n = (t.value || '').length;
+                                                        if (t.selectionStart === 0 && n > 0) {
+                                                          t.setSelectionRange(n, n);
+                                                        }
+                                                      } catch (_) {}
+                                                    }, 0);
+                                                  }, true);
+                                                })()
+                                                """.trimIndent(),
+                                                null
+                                            )
                                         }
 
                                         // On heavy pages a dead renderer used to take the whole

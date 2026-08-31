@@ -3,6 +3,26 @@
 All notable changes to Riplox TT are documented here.
 Versioning: **MAJOR.MINOR.PATCH** — new features bump MINOR, fixes bump PATCH.
 
+## [1.1.5] — 2026-09-01
+
+Faster downloads, a screen that shows them happening, and photo posts.
+
+### Added
+- **You can watch a shared download happen.** Share a TikTok link and a small sheet appears with the video's thumbnail and title, live progress, and a **Cancel** button — instead of the share sheet closing and leaving you to guess whether anything started. It has four states (preparing, downloading, saved, failed), and **Open app** takes you into the full app from any of them.
+- **Paste several links at once.** Multiple TikTok links in one paste are all queued, instead of only the first one being taken.
+- **Search your downloads**, and **Delete all** in one tap — behind a confirmation, so it cannot happen by accident.
+- **Photo and slideshow posts download too** — a carousel saves every image, not just the cover.
+- **The download engine says how current it is.** About now shows the engine version and when it last updated, with an **Update engine now** button. The automatic daily check runs *after* a download instead of before one, so it never delays the thing you actually asked for.
+
+### Fixed
+- Typing in the **Connect TikTok** screen no longer comes out reversed.
+- Carousel links that reported a download and then saved nothing.
+- The share-sheet message that stayed on screen after the download had already finished.
+- An engine update whose result was silently discarded, so the same update ran again the next day.
+
+### Changed
+- Downloads are noticeably faster, and the saved file is the clean, watermark-free rendition far more reliably than before.
+
 ## [1.1.4] — 2026-07-26
 
 Everything in 1.1.3 (below), plus update notices.
