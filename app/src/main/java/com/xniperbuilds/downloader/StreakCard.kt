@@ -72,7 +72,6 @@ fun StreakCard(activity: Activity, onAdsChanged: () -> Unit = {}) {
     var streak by remember { mutableStateOf(Prefs.streakDays(context)) }
     var lastDay by remember { mutableStateOf(Prefs.lastCheckIn(context)) }
     var adFreeUntil by remember { mutableStateOf(Prefs.adFreeUntil(context)) }
-    var accentId by remember { mutableStateOf(Prefs.accent(context)) }
     var bought by remember { mutableStateOf(Prefs.boughtAccents(context)) }
     var busy by remember { mutableStateOf(false) }
     // Bumped after any reward so the remaining-time line and the banner both recompose.
@@ -81,7 +80,7 @@ fun StreakCard(activity: Activity, onAdsChanged: () -> Unit = {}) {
     val now = System.currentTimeMillis()
     val checkedIn = Streak.isCheckedIn(lastDay, dayString())
     val adFree = Streak.adFree(adFreeUntil, now)
-    val accent = Accent.byId(accentId)
+    val accent = Accent.current(context)
     val nextLocked = Accent.nextLocked(streak, bought)
     val toNext = Streak.daysToNextMilestone(streak)
 
@@ -222,16 +221,13 @@ fun StreakCard(activity: Activity, onAdsChanged: () -> Unit = {}) {
                     available.forEach { a ->
                         Box(
                             modifier = Modifier
-                                .size(if (a.id == accentId) 28.dp else 24.dp)
+                                .size(if (a.id == accent.id) 28.dp else 24.dp)
                                 .clip(CircleShape)
                                 .background(a.primary)
-                                .clickable {
-                                    Prefs.setAccent(context, a.id)
-                                    accentId = a.id
-                                },
+                                .clickable { Accent.select(context, a.id) },
                             contentAlignment = Alignment.Center
                         ) {
-                            if (a.id == accentId) {
+                            if (a.id == accent.id) {
                                 Text("✓", fontSize = 12.sp, color = a.onPrimary)
                             }
                         }

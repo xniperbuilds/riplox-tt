@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -81,7 +82,14 @@ fun RiploxHeader(
     }
 }
 
-/** Steel-gradient primary CTA (brand ka main button). */
+/**
+ * Steel-gradient primary CTA (brand ka main button).
+ *
+ * Its gradient follows the accent the user has unlocked and chosen (see [Accent]). On the stock
+ * accent the colours are byte-for-byte the ones the app shipped with, so nobody who ignores the
+ * streak feature sees any change at all. This button is the reason accents are worth offering:
+ * it is on screen the whole time, unlike the streak card's own buttons.
+ */
 @Composable
 fun GradientButton(
     text: String,
@@ -89,11 +97,12 @@ fun GradientButton(
     modifier: Modifier = Modifier.fillMaxWidth(),
     onClick: () -> Unit
 ) {
+    val accent = Accent.current(LocalContext.current)
     Box(
         modifier = modifier
             .alpha(if (enabled) 1f else 0.45f)
             .clip(RoundedCornerShape(16.dp))
-            .background(Brush.linearGradient(listOf(Color(0xFF45587A), Color(0xFF141C2B))))
+            .background(Brush.linearGradient(listOf(accent.primary, accent.gradientEnd)))
             .clickable(enabled = enabled, onClick = onClick)
             .padding(vertical = 16.dp),
         contentAlignment = Alignment.Center
