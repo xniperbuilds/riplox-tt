@@ -43,4 +43,38 @@ object Prefs {
      * have been saved. */
     fun cookiesEnabled(c: Context) = sp(c).getBoolean("cookiesEnabled", true)
     fun setCookiesEnabled(c: Context, v: Boolean) = sp(c).edit().putBoolean("cookiesEnabled", v).apply()
+
+    // ---- Daily streak, unlocked accents and the ad-free window (see Streak.kt) ----
+
+    /** Day of the last check-in, `yyyy-MM-dd` in the device's own timezone. "" = never. */
+    fun lastCheckIn(c: Context): String = sp(c).getString("lastCheckIn", "") ?: ""
+    fun streakDays(c: Context) = sp(c).getInt("streakDays", 0)
+    fun bestStreak(c: Context) = sp(c).getInt("bestStreak", 0)
+
+    /** Written together so a crash between them cannot leave the day and count disagreeing. */
+    fun setCheckIn(c: Context, day: String, streak: Int, best: Int) =
+        sp(c).edit()
+            .putString("lastCheckIn", day)
+            .putInt("streakDays", streak)
+            .putInt("bestStreak", best)
+            .apply()
+
+    /** Epoch millis until which no ads are shown. 0 = none. */
+    fun adFreeUntil(c: Context) = sp(c).getLong("adFreeUntil", 0L)
+    fun setAdFreeUntil(c: Context, v: Long) = sp(c).edit().putLong("adFreeUntil", v).apply()
+
+    /** Accents bought with a rewarded ad rather than earned by streak (milestone ints). */
+    fun boughtAccents(c: Context): Set<Int> =
+        (sp(c).getStringSet("boughtAccents", emptySet()) ?: emptySet())
+            .mapNotNull { it.toIntOrNull() }.toSet()
+
+    fun addBoughtAccent(c: Context, milestone: Int) =
+        sp(c).edit().putStringSet(
+            "boughtAccents",
+            boughtAccents(c).plus(milestone).map { it.toString() }.toSet()
+        ).apply()
+
+    /** The accent the user is actually using. 0 = the default Riplox look. */
+    fun accent(c: Context) = sp(c).getInt("accent", 0)
+    fun setAccent(c: Context, v: Int) = sp(c).edit().putInt("accent", v).apply()
 }

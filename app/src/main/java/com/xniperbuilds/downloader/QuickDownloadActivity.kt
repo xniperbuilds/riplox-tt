@@ -119,8 +119,13 @@ class QuickDownloadActivity : ComponentActivity() {
         val audio = Prefs.audioMode(this)
         val first = DownloadQueue.enqueue(this, link, audio)
 
-        // Preload now, so a later "Open app" tap never waits on a network round trip.
-        Ads.preloadInterstitial(this)
+        // Consent + Ads SDK start. ⚠️ Deliberately NO preload here. This used to fetch an
+        // interstitial on every share open "so a later Open app tap never waits on a network
+        // round trip" — but the first Open app tap is completion #1, which is never a show
+        // slot, so that ad could not be shown and expired as a wasted matched request
+        // (measured 1–7 Sep 2026). Nothing is lost: onEnterAppFromShare never delays
+        // navigation, and it fetches for the next slot itself. See AdGate.
+        Consent.gather(this)
 
         // ⚠️ The cookie primer is deliberately NOT started here. Measured on device: loading
         // tiktok.com in a WebView on the main thread starves the very main-thread hop the

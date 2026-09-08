@@ -18,13 +18,14 @@ import zipfile
 AAB = sys.argv[1] if len(sys.argv) > 1 else ""
 
 # --- per-release settings: BUMP THESE ---------------------------------------
-VERSION = b"1.1.5"       # the versionName that MUST be in this bundle
-PREV_VERSION = b"1.1.4"  # the previous one, which must NOT be (stale-build guard)
+VERSION = b"1.2.0"       # the versionName that MUST be in this bundle
+PREV_VERSION = b"1.1.5"  # the previous one, which must NOT be (stale-build guard)
 
 # --- AdMob (record: .xniper-secrets\admob-riploxtt.txt) ---------------------
 REAL_APP = b"ca-app-pub-8029174313177489~6045986402"
 REAL_BANNER = b"ca-app-pub-8029174313177489/7721461931"
 REAL_INTER = b"ca-app-pub-8029174313177489/8209115310"
+REAL_REWARDED = b"ca-app-pub-8029174313177489/7318626890"
 TEST_MARK = b"3940256099942544"  # Google's test-ad account - forbidden in a release build
 
 WANT_MANIFEST = [
@@ -41,6 +42,7 @@ WANT_MANIFEST = [
 WANT_DEX = [
     (REAL_BANNER, "real banner id"),
     (REAL_INTER, "real interstitial id"),
+    (REAL_REWARDED, "real rewarded id (v1.2.0)"),
     (b"TikTokExtractor", "TikTok extractor (the v1.1.3 download fix)"),
     # ⚠️ v1.1.5: the Worker URL and its header come from local.properties, so a build made on a
     # machine without them compiles and installs perfectly and then quietly falls back to the

@@ -48,8 +48,16 @@ android {
         // when urgent). There is deliberately no update check on sideload/GitHub builds.
         // ⚠️ Play policy: an app installed from Play may not self-update or pull an APK,
         // so this path is gated on the install source (AppUpdates.kt).
-        versionCode = 7
-        versionName = "1.1.5"
+        // v1.2.0 = the interstitial actually gets SHOWN, and a reason to come back.
+        //   · AdMob measured 57 matched interstitials and 2 impressions (a 3.5% show rate) across 1-7 Sep 2026. Every one of
+        //     those was fetched on app open or share open, while a show needs a 2nd completed
+        //     download plus a 60s gap — so it expired unseen. Fetching now happens exactly one
+        //     completion before a show slot (AdGate.kt), with a 50-minute staleness guard.
+        //   · Daily check-in streak: 2 hours ad-free per rewarded view (banner AND interstitial
+        //     both go quiet), a free ad-free day at a 7-day streak, and accent colours unlocked
+        //     at 3/7/14/30 days. Nothing that was free has been fenced off.
+        versionCode = 8
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -59,6 +67,10 @@ android {
         manifestPlaceholders["admobAppId"] = "ca-app-pub-8029174313177489~6045986402"
         buildConfigField("String", "AD_BANNER_ID", "\"ca-app-pub-8029174313177489/7721461931\"")
         buildConfigField("String", "AD_INTERSTITIAL_ID", "\"ca-app-pub-8029174313177489/8209115310\"")
+        // ⚠️ Rewarded unit for the ad-free window / accent unlocks. BLANK until the unit is
+        // created in the AdMob console. While it is blank the app hides every rewarded option
+        // rather than offering a reward it cannot deliver.
+        buildConfigField("String", "AD_REWARDED_ID", "\"ca-app-pub-8029174313177489/7318626890\"")
 
         buildConfigField("String", "TT_WORKER_URL", "\"$ttWorkerUrl\"")
         buildConfigField("String", "TT_WORKER_TOKEN", "\"$ttWorkerToken\"")
@@ -113,6 +125,8 @@ android {
             manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
             buildConfigField("String", "AD_BANNER_ID", "\"ca-app-pub-3940256099942544/6300978111\"")
             buildConfigField("String", "AD_INTERSTITIAL_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
+            // Google's public test rewarded unit
+            buildConfigField("String", "AD_REWARDED_ID", "\"ca-app-pub-3940256099942544/5224354917\"")
         }
     }
     compileOptions {
@@ -146,6 +160,11 @@ dependencies {
 
     // AdMob — bottom banner + interstitial (Ads.kt)
     implementation("com.google.android.gms:play-services-ads:24.4.0")
+
+    // Google's User Messaging Platform — the EEA/UK/Switzerland privacy form (Consent.kt).
+    // Without a certified CMP that traffic is eligible only for non-personalised / limited ads.
+    // Same version Riplox IG already ships.
+    implementation("com.google.android.ump:user-messaging-platform:4.0.0")
 
     // Play In-App Updates — the "a new version is out" notice (AppUpdates.kt).
     // Only works on an app installed from Play; sideload/GitHub builds run no update check

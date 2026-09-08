@@ -55,6 +55,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -79,7 +80,6 @@ import androidx.work.WorkManager
 import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.decode.VideoFrameDecoder
-import com.google.android.gms.ads.MobileAds
 import com.xniperbuilds.downloader.ui.theme.SpaceGrotesk
 import com.yausername.youtubedl_android.YoutubeDL
 import kotlinx.coroutines.Dispatchers
@@ -112,11 +112,14 @@ class MainActivity : ComponentActivity() {
             )
         }
 
-        // AdMob init (background thread — UI block na ho) + pehla interstitial preload
-        if (Ads.ENABLED) {
-            Thread { try { MobileAds.initialize(this) } catch (_: Exception) {} }.start()
-            Ads.preloadInterstitial(this)
-        }
+        // Consent first, then the Ads SDK — Consent.gather() starts MobileAds off the main
+        // thread in both its success and failure paths (see Consent.kt).
+        // ⚠️ Deliberately NO interstitial preload here. Fetching one on app open was measured
+        // (1–7 Sep 2026) as the main cause of a 29% show rate: most sessions never reach the
+        // 2nd completed download a full-screen ad needs, so the ad expired unshown and counted
+        // as a matched request with no impression. The fetch now happens one completion before
+        // a show slot instead — see AdGate.
+        Consent.gather(this)
 
         setContent {
             com.xniperbuilds.downloader.ui.theme.XniperDownloaderTheme {
@@ -271,6 +274,13 @@ fun Home(activity: ComponentActivity) {
         onDispose { updates.dispose() }
     }
 
+    // Rewarded is opt-in, so unlike the interstitial it IS fetched ahead of time: the button
+    // is only offered once an ad is actually in hand, and a user who taps must not wait on
+    // the network. See Ads.loadRewarded / StreakCard.
+    LaunchedEffect(Unit) { Ads.loadRewarded(context) }
+    // Bumped when a reward lands, so the banner slot re-evaluates Ads.suppressed().
+    var adsEpoch by remember { mutableStateOf(0) }
+
     // Refresh Recent/Failed whenever download state changes, and check the clipboard on resume
     DisposableEffect(Unit) {
         val wmLive = WorkManager.getInstance(context).getWorkInfosByTagLiveData(DownloadQueue.TAG)
@@ -372,6 +382,12 @@ fun Home(activity: ComponentActivity) {
                 }
                 Spacer(Modifier.height(14.dp))
             }
+        }
+
+        // ---- Daily check-in: streak, ad-free window, accent unlocks (StreakCard.kt) ----
+        item {
+            StreakCard(activity) { adsEpoch++ }
+            Spacer(Modifier.height(14.dp))
         }
 
         // ---- Connect TikTok (login/cookies) — private / region-locked / age-restricted ----
@@ -768,7 +784,7 @@ fun Home(activity: ComponentActivity) {
             }
         }
     }
-        BannerAd()
+        key(adsEpoch) { BannerAd() }
     }
 
     // ---- Background-setup dialog (opens from both the banner and About) ----

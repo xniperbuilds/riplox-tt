@@ -3,6 +3,19 @@
 All notable changes to Riplox TT are documented here.
 Versioning: **MAJOR.MINOR.PATCH** — new features bump MINOR, fixes bump PATCH.
 
+## [1.2.0] — 2026-09-08
+
+A reason to come back, two hours without ads, and the full-screen ad that was barely ever showing.
+
+### Added
+- **Daily check-in streak.** Open Riplox TT, tap **Check in**, and your streak grows. Keep it going and accent colours unlock along the way — **Ocean** at 3 days, **Neon** at 7, **Ember** at 14, **Aurora** at 30 — and a 7-day streak pays a **whole ad-free day**, with nothing to watch for it.
+- **Two hours with no ads, whenever you want them.** Watch one short ad and the app goes quiet — banner and full-screen both — for two hours. Watch another and the time is added to what you already had, up to a day. Nothing that used to be free has been put behind it: every quality, MP3, batch paste and the optional login work exactly as before.
+- **A privacy form for users in the EEA, the UK and Switzerland**, so ads there are handled the way those rules require.
+
+### Fixed
+- **The full-screen ad was almost never appearing.** It was being fetched when the app opened and when a link was shared — moments when it could not be shown — so it expired unseen. Over one measured week the app fetched 57 and showed 2. It is now fetched one download before it is due, and dropped if it goes stale.
+- **The bottom banner sits in a wider slot** and asks again after a failure instead of leaving the space blank until the app is reopened.
+
 ## [1.1.5] — 2026-09-01
 
 Faster downloads, a screen that shows them happening, and photo posts.
