@@ -24,9 +24,9 @@ APK = sys.argv[1] if len(sys.argv) > 1 else ""
 BADGING = sys.argv[2] if len(sys.argv) > 2 else ""
 
 # --- per-release settings: BUMP THESE ---------------------------------------
-VERSION = "1.1.5"       # the versionName that MUST be in this APK
-PREV_VERSION = "1.1.4"  # the previous one, which must NOT be (stale-build guard)
-VERSION_CODE = "7"
+VERSION = "1.2.0"       # the versionName that MUST be in this APK
+PREV_VERSION = "1.1.5"  # the previous one, which must NOT be (stale-build guard)
+VERSION_CODE = "8"
 
 # --- AdMob (record: .xniper-secrets\admob-riploxtt.txt) ---------------------
 REAL_BANNER = b"ca-app-pub-8029174313177489/7721461931"

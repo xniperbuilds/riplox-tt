@@ -26,3 +26,6 @@ _build_log.txt
 
 # extractor service - not part of the public app repo
 /server/
+
+# ripple's local working state (surfaces are re-discoverable; status is never committed)
+.ripple/

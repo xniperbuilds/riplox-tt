@@ -40,6 +40,8 @@ Paste a link or share from the app — the no-watermark video lands straight in 
 - 📁 **Straight to your gallery** — video in `Movies/RiploxTT`, audio in `Music/RiploxTT`
 - 🔓 **No account needed** — public videos download straight away. **Connect TikTok** is optional, for private / region-locked / age-restricted videos, and can be switched off again without logging out
 - 🎨 **Clean AMOLED-black UI** — Material 3, one calm screen, no clutter
+- 🔥 **Daily check-in streak** — tap **Check in** each day and accent colours unlock at 3, 7, 14 and 30 days; a 7-day streak pays a **whole ad-free day**
+- 🎁 **Two hours with no ads** — watch one short ad and the app goes quiet, banner and full screen both. Watch again to add more, up to a day. Nothing that was free has moved behind it
 
 ## Install
 
