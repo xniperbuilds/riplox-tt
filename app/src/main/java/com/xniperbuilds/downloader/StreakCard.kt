@@ -64,6 +64,10 @@ private fun prettyRemaining(ms: Long): String {
  *
  * The button is also hidden outright unless a rewarded ad is actually in hand
  * ([Ads.rewardedReady]), because a reward we cannot deliver must not be offered.
+ *
+ * v1.2.1: when a rewarded ad is in hand, today's check-in itself goes through it — "Watch a
+ * short ad → check in". With no ad ready, or inside the ad-free window, it stays a plain free
+ * "Check in". See [Streak.checkInWithAd] for why this is rewarded and not an interstitial.
  */
 @Composable
 fun StreakCard(activity: Activity, onAdsChanged: () -> Unit = {}) {
@@ -80,6 +84,10 @@ fun StreakCard(activity: Activity, onAdsChanged: () -> Unit = {}) {
     val now = System.currentTimeMillis()
     val checkedIn = Streak.isCheckedIn(lastDay, dayString())
     val adFree = Streak.adFree(adFreeUntil, now)
+    val checkInViaAd = !checkedIn && Streak.checkInWithAd(
+        adReady = Ads.rewardedConfigured && Ads.rewardedReady(),
+        adFree = adFree,
+    )
     val accent = Accent.current(context)
     val nextLocked = Accent.nextLocked(streak, bought)
     val toNext = Streak.daysToNextMilestone(streak)
@@ -98,6 +106,29 @@ fun StreakCard(activity: Activity, onAdsChanged: () -> Unit = {}) {
         // plain check-in does not change whether ads may show. Asking for an ad we did not
         // need is the exact defect this release exists to remove (see AdGate).
         if (Streak.adFree(adFreeUntil, System.currentTimeMillis()) != wasAdFree) onAdsChanged()
+    }
+
+    fun checkIn() {
+        val prev = Prefs.streakDays(context)
+        val next = Streak.nextStreak(
+            lastCheckIn = Prefs.lastCheckIn(context),
+            today = dayString(),
+            yesterday = dayString(-1),
+            current = prev
+        )
+        Prefs.setCheckIn(context, dayString(), next, maxOf(Prefs.bestStreak(context), next))
+        // The 7-day milestone pays a full ad-free day, with no ad to watch.
+        if (Streak.grantsFreeDay(next, prev)) {
+            Prefs.setAdFreeUntil(
+                context,
+                Streak.extendAdFree(
+                    Prefs.adFreeUntil(context),
+                    System.currentTimeMillis(),
+                    Streak.AD_FREE_CAP_MS
+                )
+            )
+        }
+        refresh()
     }
 
     Card(
@@ -128,44 +159,45 @@ fun StreakCard(activity: Activity, onAdsChanged: () -> Unit = {}) {
                         color = Color(0xFF9AA6B8)
                     )
                 }
-                if (!checkedIn) {
+                if (checkedIn) {
+                    Text("✓ today", fontSize = 12.sp, color = Color(0xFF6FBF9B))
+                } else if (!checkInViaAd) {
+                    // No ad in hand, or inside the ad-free window: the check-in stays free.
                     Button(
-                        onClick = {
-                            val prev = Prefs.streakDays(context)
-                            val next = Streak.nextStreak(
-                                lastCheckIn = Prefs.lastCheckIn(context),
-                                today = dayString(),
-                                yesterday = dayString(-1),
-                                current = prev
-                            )
-                            Prefs.setCheckIn(
-                                context, dayString(), next,
-                                maxOf(Prefs.bestStreak(context), next)
-                            )
-                            // The 7-day milestone pays a full ad-free day, with no ad to watch.
-                            if (Streak.grantsFreeDay(next, prev)) {
-                                Prefs.setAdFreeUntil(
-                                    context,
-                                    Streak.extendAdFree(
-                                        Prefs.adFreeUntil(context),
-                                        System.currentTimeMillis(),
-                                        Streak.AD_FREE_CAP_MS
-                                    )
-                                )
-                            }
-                            refresh()
-                        },
+                        onClick = { checkIn() },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = accent.primary, contentColor = accent.onPrimary
                         )
                     ) { Text("Check in", fontSize = 13.sp) }
-                } else {
-                    Text("✓ today", fontSize = 12.sp, color = Color(0xFF6FBF9B))
                 }
             }
 
+            // ---- Rewarded: today's check-in (v1.2.1) ----
+            // The label states both the cost and the reward before the ad, as AdMob requires.
+            // The check-in is granted only on OnUserEarnedReward: closing the ad early earns
+            // nothing, and the button comes back — as the free one if no new ad has loaded.
+            if (checkInViaAd) {
+                Spacer(Modifier.height(10.dp))
+                Button(
+                    onClick = {
+                        if (busy) return@Button
+                        busy = true
+                        Ads.showRewarded(
+                            activity,
+                            onReward = { checkIn() },
+                            onFinished = { busy = false; refresh() }
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = accent.primary, contentColor = accent.onPrimary
+                    )
+                ) { Text("Watch a short ad → check in", fontSize = 13.sp) }
+            }
+
             // ---- Rewarded: more ad-free time ----
-            if (Ads.rewardedConfigured && Ads.rewardedReady() && !adFree) {
+            // Held back while the check-in offer is up — one ad offer at a time, not three stacked.
+            if (Ads.rewardedConfigured && Ads.rewardedReady() && !adFree && !checkInViaAd) {
                 Spacer(Modifier.height(10.dp))
                 Button(
                     onClick = {
@@ -194,7 +226,7 @@ fun StreakCard(activity: Activity, onAdsChanged: () -> Unit = {}) {
             }
 
             // ---- Rewarded: unlock the next accent early ----
-            if (Ads.rewardedConfigured && Ads.rewardedReady() && nextLocked != null) {
+            if (Ads.rewardedConfigured && Ads.rewardedReady() && nextLocked != null && !checkInViaAd) {
                 Spacer(Modifier.height(8.dp))
                 Button(
                     onClick = {

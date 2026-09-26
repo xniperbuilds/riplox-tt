@@ -3,6 +3,15 @@
 All notable changes to Riplox TT are documented here.
 Versioning: **MAJOR.MINOR.PATCH** — new features bump MINOR, fixes bump PATCH.
 
+## [1.2.1] — 2026-09-24
+
+### Changed
+- **Check in with a short ad.** When an ad is ready, the check-in button says so — **Watch a short ad → check in** — and your streak moves on once the ad finishes. If no ad has loaded, or you are inside your ad-free time, **Check in** stays free, so a streak never breaks because an ad did not arrive.
+
+### Fixed
+- **Sharing a link while the app was closed could crash it on some phones.** The privacy (consent) check and the download sheet were both setting up the same screen at the same moment from two threads. The download itself still finished, but the sheet vanished with a "has stopped" message. Measured on one phone: 3 of 10 such shares crashed before the fix, 0 of 20 after.
+- **A second shared link could be lost.** Sharing another TikTok link while the download sheet from the first one was still open did nothing — the new link was never queued and the sheet kept showing the old download. Every share now starts its own download and the sheet follows the newest one.
+
 ## [1.2.0] — 2026-09-08
 
 A reason to come back, two hours without ads, and the full-screen ad that was barely ever showing.

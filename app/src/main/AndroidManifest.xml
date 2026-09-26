@@ -51,9 +51,18 @@
             </intent-filter>
         </activity>
 
+        <!-- The share tile.
+             ⚠️ android:noHistory was REMOVED in v1.1.5: it finishes the activity the moment it
+             stops being visible, and this is now a real sheet that has to survive a full-screen
+             ad opening over it.
+             ⚠️ singleTop is the other half of that change. Without noHistory an instance stays
+             alive, and a second share is DELIVERED TO IT rather than starting a new one.
+             singleTop makes that explicit, and QuickDownloadActivity.onNewIntent restarts the
+             flow with the new link — without it the second share was dropped (v1.2.1 fix). -->
         <activity
             android:name=".QuickDownloadActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:label="@string/quick_label"
             android:theme="@style/Theme.XniperDownloader.Transparent"
             android:excludeFromRecents="true"

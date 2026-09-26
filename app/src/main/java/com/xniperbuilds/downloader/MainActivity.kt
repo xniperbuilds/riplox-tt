@@ -119,7 +119,12 @@ class MainActivity : ComponentActivity() {
         // 2nd completed download a full-screen ad needs, so the ad expired unshown and counted
         // as a matched request with no impression. The fetch now happens one completion before
         // a show slot instead — see AdGate.
-        Consent.gather(this)
+        // The rewarded ad (check-in, ad-free time, accents) IS fetched once consent resolves.
+        // The LaunchedEffect further down asks too, but on a first launch it runs before the
+        // consent state exists, gets refused by canRequestAds(), and never asks again — so a new
+        // user's first check-in could never offer the ad. loadRewarded() ignores a second call
+        // while one ad is held or in flight.
+        Consent.gather(this) { Ads.loadRewarded(this) }
 
         setContent {
             com.xniperbuilds.downloader.ui.theme.XniperDownloaderTheme {

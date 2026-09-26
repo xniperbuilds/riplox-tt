@@ -18,8 +18,8 @@ import zipfile
 AAB = sys.argv[1] if len(sys.argv) > 1 else ""
 
 # --- per-release settings: BUMP THESE ---------------------------------------
-VERSION = b"1.2.0"       # the versionName that MUST be in this bundle
-PREV_VERSION = b"1.1.5"  # the previous one, which must NOT be (stale-build guard)
+VERSION = b"1.2.1"       # the versionName that MUST be in this bundle
+PREV_VERSION = b"1.2.0"  # the previous one, which must NOT be (stale-build guard)
 
 # --- AdMob (record: .xniper-secrets\admob-riploxtt.txt) ---------------------
 REAL_APP = b"ca-app-pub-8029174313177489~6045986402"

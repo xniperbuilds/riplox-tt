@@ -78,6 +78,16 @@ object Consent {
      */
     fun gather(activity: Activity, onReady: () -> Unit = {}) {
         if (!Ads.ENABLED) return
+        // ⚠️ Install the window's decor HERE, on the main thread, before UMP gets the activity.
+        // requestConsentInfoUpdate() reaches activity.window.decorView from its own worker
+        // thread. If the decor does not exist yet, PhoneWindow.installDecor() runs on two threads
+        // at once — it is not thread-safe — and the caller's setContent() then dies with "Window
+        // couldn't find content container view", or an NPE in getChildAt.
+        // Measured on a Huawei YAL-L21 (Android 10), 24 Sep 2026: 3 of 10 cold-start shares
+        // crashed, and the log shows a DecorView being built on the UMP thread and on the main
+        // thread in the same millisecond. Once the decor exists, getDecorView() on any thread
+        // just returns it. Both callers (MainActivity, QuickDownloadActivity) come through here.
+        @Suppress("UNUSED_EXPRESSION") activity.window.decorView
         val ci = try {
             info(activity)
         } catch (e: Exception) {

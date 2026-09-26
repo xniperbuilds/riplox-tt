@@ -54,6 +54,22 @@ object Streak {
     /** Has today's check-in already happened? */
     fun isCheckedIn(lastCheckIn: String, today: String): Boolean = lastCheckIn == today
 
+    /**
+     * Does today's check-in go through a rewarded ad? (v1.2.1)
+     *
+     * Only when an ad is actually in hand AND the user is not inside their ad-free window —
+     * "no ads" has to mean this one too. In every other case (unit not configured, still
+     * loading, no fill) the check-in stays free: a streak must never break because an ad did
+     * not arrive.
+     *
+     * ⚠️ Rewarded, not interstitial, on purpose. AdMob allows interstitials only "at logical
+     * breaks in between your app's content" and "no more than one interstitial ad after every
+     * two user actions" — a button that does not change the page meets neither, and a policy
+     * strike lands on the whole AdMob account, not just this app. A rewarded ad is allowed on a
+     * tap, as long as the button says what it costs and what it gives.
+     */
+    fun checkInWithAd(adReady: Boolean, adFree: Boolean): Boolean = adReady && !adFree
+
     /** Every accent unlocked by reaching [streak]. */
     fun unlockedBy(streak: Int): List<Int> = THEME_MILESTONES.filter { streak >= it }
 

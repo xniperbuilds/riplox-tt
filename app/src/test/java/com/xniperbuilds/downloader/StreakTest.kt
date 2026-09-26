@@ -48,6 +48,25 @@ class StreakTest {
         assertFalse(Streak.isCheckedIn("", today))
     }
 
+    // ---------- check-in through a rewarded ad (v1.2.1) ----------
+
+    @Test
+    fun checkInGoesThroughTheAdOnlyWhenOneIsReady() {
+        assertTrue(Streak.checkInWithAd(adReady = true, adFree = false))
+    }
+
+    @Test
+    fun noAdInHandMeansAFreeCheckIn() {
+        // Still loading, no fill, or the unit is not configured: the streak must not break.
+        assertFalse(Streak.checkInWithAd(adReady = false, adFree = false))
+    }
+
+    @Test
+    fun theAdFreeWindowCoversTheCheckInAdToo() {
+        assertFalse("ad-free means no ads, this one included", Streak.checkInWithAd(adReady = true, adFree = true))
+        assertFalse(Streak.checkInWithAd(adReady = false, adFree = true))
+    }
+
     // ---------- milestones ----------
 
     @Test

@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -93,12 +94,41 @@ private enum class Phase { Preparing, Downloading, Saved, Failed }
  * foreground activity is strictly stronger than an invisible one, and the sheet now stays up
  * instead of racing to finish. Back, or a tap outside, dismisses it and the download carries on
  * in the background — the old behaviour, preserved.
+ *
+ * ⚠️ `android:noHistory` had to come off this activity in the manifest. It finishes an activity
+ * the moment it stops being visible, which would have killed the sheet as soon as a full-screen
+ * ad opened over it. The price of that is [onNewIntent] — read it before touching either.
  */
 class QuickDownloadActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        start(intent)
+    }
 
+    /**
+     * ⚠️ THE SECOND SHARE LANDS HERE, NOT IN onCreate — and until v1.2.1 it was silently thrown
+     * away.
+     *
+     * This activity has an empty taskAffinity and is the root of its own task, so while a sheet
+     * is still alive Android re-delivers the next share to it instead of creating a second one
+     * ("Activity not started, intent has been delivered to currently running top-most
+     * instance"). Before v1.1.5 that could not happen: noHistory finished the activity the moment
+     * it stopped being visible, so no instance was ever left to deliver to. Removing noHistory is
+     * what exposed it — the old sheet stayed up showing the PREVIOUS download, and the new link
+     * was never queued.
+     *
+     * Found in Riplox IG first (4 Sep 2026, `adb shell am start` twice) and fixed there. This app
+     * had the same code and the matching casegrid symptom — C4, one link shared twice produced
+     * ONE file. `DownloadQueue.enqueue` does no de-duplication, so that was a drop, not a de-dupe.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        start(intent)
+    }
+
+    private fun start(intent: Intent?) {
         val link = if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
             extractUrl(intent.getStringExtra(Intent.EXTRA_TEXT))
         } else null
@@ -133,7 +163,10 @@ class QuickDownloadActivity : ComponentActivity() {
         // for a minute instead of failing fast. It runs once this download has settled instead
         // — see the LaunchedEffect below.
 
-        setContent { Sheet(link, audio, first) }
+        // ⚠️ key(first): a second share calls setContent on the SAME composition, and Compose
+        // keeps `remember` state at the same call site — without the key the sheet would go on
+        // watching the previous job's id. Keying on the new job gives it a fresh sheet.
+        setContent { key(first) { Sheet(link, audio, first) } }
     }
 
     @Composable

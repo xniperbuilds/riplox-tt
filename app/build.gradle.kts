@@ -56,8 +56,15 @@ android {
         //   · Daily check-in streak: 2 hours ad-free per rewarded view (banner AND interstitial
         //     both go quiet), a free ad-free day at a 7-day streak, and accent colours unlocked
         //     at 3/7/14/30 days. Nothing that was free has been fenced off.
-        versionCode = 8
-        versionName = "1.2.0"
+        // v1.2.1 (vc9):
+        //   · A second share while a sheet was still open was silently dropped — the share
+        //     activity had no onNewIntent once noHistory came off in v1.1.5 (casegrid C4).
+        //   · Check-in goes through a rewarded ad when one is ready ("Watch a short ad →
+        //     check in"); free when none is, and inside the ad-free window.
+        //   · Cold-start crash: UMP built the window decor on its worker thread while the main
+        //     thread's setContent() built it too (3/10 cold shares on a Huawei). See Consent.gather.
+        versionCode = 9
+        versionName = "1.2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
