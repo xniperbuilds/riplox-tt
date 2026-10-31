@@ -26,8 +26,8 @@ REAL_APP = b"ca-app-pub-8029174313177489~6045986402"
 REAL_BANNER = b"ca-app-pub-8029174313177489/7721461931"
 REAL_INTER = b"ca-app-pub-8029174313177489/8209115310"
 REAL_REWARDED = b"ca-app-pub-8029174313177489/7318626890"
-REAL_BOX = b""       # "TT Sheet Box" (v1.3.0) — fill from admob-riploxtt.txt
-REAL_APP_OPEN = b""  # "TT App Open" (v1.3.0) — fill from admob-riploxtt.txt
+REAL_BOX = b"ca-app-pub-8029174313177489/6388930824"       # "TT Sheet Box" (v1.3.0)
+REAL_APP_OPEN = b"ca-app-pub-8029174313177489/2745646391"  # "TT App Open" (v1.3.0)
 TEST_MARK = b"3940256099942544"  # Google's test-ad account - forbidden in a release build
 
 WANT_MANIFEST = [

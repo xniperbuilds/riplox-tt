@@ -92,8 +92,8 @@ android {
         // v1.3.0 units — banner "TT Sheet Box" + "TT App Open" (record: admob-riploxtt.txt).
         //   Box: blank falls back to the banner unit (a banner unit serves any banner size).
         //   App open: blank switches the whole app-open flow OFF — no splash, no request.
-        buildConfigField("String", "AD_BOX_ID", "\"\"")
-        buildConfigField("String", "AD_APP_OPEN_ID", "\"\"")
+        buildConfigField("String", "AD_BOX_ID", "\"ca-app-pub-8029174313177489/6388930824\"")
+        buildConfigField("String", "AD_APP_OPEN_ID", "\"ca-app-pub-8029174313177489/2745646391\"")
 
         buildConfigField("String", "TT_WORKER_URL", "\"$ttWorkerUrl\"")
         buildConfigField("String", "TT_WORKER_TOKEN", "\"$ttWorkerToken\"")
