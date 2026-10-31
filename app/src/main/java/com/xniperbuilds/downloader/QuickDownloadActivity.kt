@@ -155,7 +155,7 @@ class QuickDownloadActivity : ComponentActivity() {
      * being visible — there was never an instance left to deliver to. Removing noHistory (so
      * the sheet could survive a full-screen ad) is what exposed it.
      *
-     * The symptom was exactly "share karo aur sheet aati hi nahi, screen atak jati hai": the
+     * The symptom was exactly "I share and the sheet never shows, the screen just hangs": the
      * old sheet stayed on screen showing the PREVIOUS download, the new link was never queued,
      * and every button on it still pointed at the old job.
      */

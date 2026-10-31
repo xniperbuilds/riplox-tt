@@ -89,7 +89,7 @@ android {
         // created in the AdMob console. While it is blank the app hides every rewarded option
         // rather than offering a reward it cannot deliver.
         buildConfigField("String", "AD_REWARDED_ID", "\"ca-app-pub-8029174313177489/7318626890\"")
-        // v1.3.0 units — banner "TT Sheet Box" + "TT App Open" (record: admob-riploxtt.txt).
+        // v1.3.0 units — banner "TT Sheet Box" + "TT App Open" .
         //   Box: blank falls back to the banner unit (a banner unit serves any banner size).
         //   App open: blank switches the whole app-open flow OFF — no splash, no request.
         buildConfigField("String", "AD_BOX_ID", "\"ca-app-pub-8029174313177489/6388930824\"")

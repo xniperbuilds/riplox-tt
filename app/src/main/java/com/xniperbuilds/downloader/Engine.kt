@@ -79,7 +79,7 @@ object Engine {
     private fun dateOf(v: String): String = v.trim().take(10)
 
     /**
-     * ⚠️⚠️ THE TRAP THIS EXISTS TO BREAK — measured on Nazim's phone, 10-Sep-2026.
+     * ⚠️⚠️ THE TRAP THIS EXISTS TO BREAK — measured on a test phone, 10-Sep-2026.
      *
      * The library decides "already up to date" by comparing its SharedPreferences marker with
      * GitHub's latest tag. It never looks at the yt-dlp on disk. So if the marker is ever
