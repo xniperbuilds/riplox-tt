@@ -41,7 +41,7 @@ Paste a link or share from the app — the no-watermark video lands straight in 
 - 🔓 **No account needed** — public videos download straight away. **Connect TikTok** is optional, for private / region-locked / age-restricted videos, and can be switched off again without logging out
 - 🎨 **Clean AMOLED-black UI** — Material 3, one calm screen, no clutter
 - 🔥 **Daily check-in streak** — tap **Check in** each day and accent colours unlock at 3, 7, 14 and 30 days; a 7-day streak pays a **whole ad-free day**
-- 🎁 **Two hours with no ads** — watch one short ad and the app goes quiet, banner and full screen both. Watch again to add more, up to a day. Nothing that was free has moved behind it
+- 🎁 **Two hours with no ads** — watch one short ad and the app goes quiet: every ad, banner and full screen alike. Watch again to add more, up to a day. Nothing that was free has moved behind it
 
 ## Install
 
@@ -73,7 +73,7 @@ TikTok occasionally rate-limits a request. Tap **Retry**, or **Copy link** and p
 Your gallery — `Movies/RiploxTT` for video, `Music/RiploxTT` for MP3. Photo posts go to `Pictures/RiploxTT`.
 
 **Is it safe?**
-It's open source — read the code. No analytics and no tracking of what you download. Two things are worth stating plainly: the released build **does include the AdMob SDK** (a banner, plus an interstitial after every second completed download), and **if** you use the optional Connect TikTok login, the session cookies stay in the app's private storage on your phone — excluded from cloud backup and device transfer, never sent anywhere, and your password is typed on TikTok's own page, never seen by the app.
+It's open source — read the code. No analytics and no tracking of what you download. Being upfront: the released build **does include the AdMob SDK** — a banner on the home screen, one ad on the share sheet, an interstitial after every second completed download, an ad on opening the app (at most once an hour, never on the first two opens), and an optional ad you can choose to watch for ad-free time. **If** you use the optional Connect TikTok login, the session cookies stay in the app's private storage on your phone — excluded from cloud backup and device transfer, never sent anywhere, and your password is typed on TikTok's own page, never seen by the app.
 
 **Do I have to log in?**
 No. Public videos download without an account. Connect TikTok exists only for private, region-locked or age-restricted videos, and the "Use my login for downloads" switch turns it off again without logging you out.

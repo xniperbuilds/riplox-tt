@@ -185,4 +185,67 @@ class AdGateTest {
         assertFalse("app open", AdGate.shouldPreload(0, hasAd = false, loading = false))
         assertFalse("share open", AdGate.shouldPreload(0, hasAd = false, loading = false))
     }
+
+    // ---------- app open ad (v1.3.0) ----------
+
+    private val HOUR = 60L * 60L * 1000L
+    private val WALL = 1_760_000_000_000L // an ordinary wall-clock instant
+
+    /** Every condition passing — each test below breaks exactly one of them. */
+    private fun appOpen(
+        opens: Int = 3,
+        lastAppOpenAt: Long = AdGate.NEVER,
+        nowWall: Long = WALL,
+        lastFullScreenAt: Long = AdGate.NEVER,
+        nowElapsed: Long = T0,
+        adFree: Boolean = false,
+        clickedAway: Boolean = false,
+    ) = AdGate.shouldShowAppOpen(
+        opens, lastAppOpenAt, nowWall, lastFullScreenAt, nowElapsed, adFree, clickedAway,
+    )
+
+    @Test
+    fun appOpenShowsWhenEverythingClears() {
+        assertTrue(appOpen())
+    }
+
+    @Test
+    fun appOpenSkipsTheFirstTwoOpens() {
+        // Google: show the first one "after your users have used your app a few times".
+        assertFalse("first open ever", appOpen(opens = 1))
+        assertFalse("second open", appOpen(opens = 2))
+        assertTrue("third open", appOpen(opens = 3))
+    }
+
+    @Test
+    fun appOpenAtMostOncePerHour() {
+        assertFalse("59 min after the last one", appOpen(lastAppOpenAt = WALL - 59L * 60_000L))
+        assertTrue("exactly an hour", appOpen(lastAppOpenAt = WALL - HOUR))
+        assertTrue("two hours", appOpen(lastAppOpenAt = WALL - 2 * HOUR))
+    }
+
+    @Test
+    fun appOpenClockSetBackwardsDoesNotSilenceItForDays() {
+        // The phone's clock was corrected backwards: the last ad is "in the future". Treat the
+        // cap as cleared rather than waiting days for the clock to catch up.
+        assertTrue(appOpen(lastAppOpenAt = WALL + 3L * 24L * HOUR))
+    }
+
+    @Test
+    fun appOpenNeverInsideTheAdFreeWindow() {
+        // The window promises no ads — full-screen ones included.
+        assertFalse(appOpen(adFree = true))
+    }
+
+    @Test
+    fun appOpenNotWhenComingBackFromAnAdClick() {
+        assertFalse(appOpen(clickedAway = true))
+    }
+
+    @Test
+    fun appOpenKeepsTheSixtySecondFloorToOtherFullScreenAds() {
+        // "Don't display ads immediately before or after app open ads."
+        assertFalse("interstitial 30s ago", appOpen(lastFullScreenAt = T0 - 30_000L))
+        assertTrue("interstitial 60s ago", appOpen(lastFullScreenAt = T0 - AdGate.MIN_GAP_MS))
+    }
 }

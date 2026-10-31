@@ -94,6 +94,13 @@ object Consent {
             Log.w(TAG, "UMP unavailable: ${e.message}")
             startAds(activity); onReady(); return
         }
+        // Consent from an EARLIER session already allows ads → start the SDK now, in parallel with
+        // the refresh below, instead of after its network round trip. This is the pattern in
+        // Google's own UMP sample ("attempts to load ads using consent obtained in the previous
+        // session"). It matters most on the share sheet, which lives a few seconds and used to
+        // spend part of them waiting on this call. A first-ever launch is unchanged: there
+        // canRequestAds() is still false here.
+        if (canRequestAds(activity)) startAds(activity)
         try {
             ci.requestConsentInfoUpdate(
                 activity,

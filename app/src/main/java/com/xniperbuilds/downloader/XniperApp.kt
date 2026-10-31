@@ -1,9 +1,11 @@
 package com.xniperbuilds.downloader
 
+import android.app.Activity
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
+import android.os.Bundle
 import android.util.Log
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
@@ -23,6 +25,18 @@ class XniperApp : Application() {
         } catch (e: YoutubeDLException) {
             Log.e("XniperApp", "Engine init failed", e)
         }
+
+        // Foreground tracking for the app-open ad — which activity brought the process back, and
+        // after how long. A plain counter on the platform callbacks; no extra library.
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            override fun onActivityStarted(activity: Activity) = AppOpen.onActivityStarted(activity)
+            override fun onActivityStopped(activity: Activity) = AppOpen.onActivityStopped()
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+            override fun onActivityResumed(activity: Activity) {}
+            override fun onActivityPaused(activity: Activity) {}
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+            override fun onActivityDestroyed(activity: Activity) {}
+        })
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(

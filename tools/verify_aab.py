@@ -18,14 +18,16 @@ import zipfile
 AAB = sys.argv[1] if len(sys.argv) > 1 else ""
 
 # --- per-release settings: BUMP THESE ---------------------------------------
-VERSION = b"1.2.1"       # the versionName that MUST be in this bundle
-PREV_VERSION = b"1.2.0"  # the previous one, which must NOT be (stale-build guard)
+VERSION = b"1.3.0"       # the versionName that MUST be in this bundle
+PREV_VERSION = b"1.2.1"  # the previous one, which must NOT be (stale-build guard)
 
 # --- AdMob (record: .xniper-secrets\admob-riploxtt.txt) ---------------------
 REAL_APP = b"ca-app-pub-8029174313177489~6045986402"
 REAL_BANNER = b"ca-app-pub-8029174313177489/7721461931"
 REAL_INTER = b"ca-app-pub-8029174313177489/8209115310"
 REAL_REWARDED = b"ca-app-pub-8029174313177489/7318626890"
+REAL_BOX = b""       # "TT Sheet Box" (v1.3.0) — fill from admob-riploxtt.txt
+REAL_APP_OPEN = b""  # "TT App Open" (v1.3.0) — fill from admob-riploxtt.txt
 TEST_MARK = b"3940256099942544"  # Google's test-ad account - forbidden in a release build
 
 WANT_MANIFEST = [
@@ -51,6 +53,11 @@ WANT_DEX = [
     (b"riplox-tt-extract", "extractor Worker URL"),
     (b"X-Riplox-App", "Worker app-token header"),
     (b"appupdate", "Play In-App Updates library"),
+    # NEW in v1.3.0. A blank id does not fail the build - it silently turns the box into the
+    # banner unit and the app-open flow OFF - so both are checked here, by value.
+    (REAL_BOX, "real sheet-box id (new in v1.3.0)"),
+    (REAL_APP_OPEN, "real app-open id (new in v1.3.0)"),
+    (b"Lcom/xniperbuilds/downloader/AppOpen;", "app-open flow (new in v1.3.0)"),
 ]
 
 # These strings must NOT be present in the bundle. Play's Device & Network Abuse policy:

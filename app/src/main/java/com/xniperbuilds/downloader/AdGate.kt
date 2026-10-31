@@ -96,4 +96,51 @@ object AdGate {
      */
     fun shouldPreload(completedCount: Int, hasAd: Boolean, loading: Boolean): Boolean =
         !hasAd && !loading && isShowSlot(completedCount + 1)
+
+    // ---- App open ad (v1.3.0) ----------------------------------------------------------------
+
+    /**
+     * Opens that never see an app-open ad. Google's own guidance: *"Show your first app open ad
+     * after your users have used your app a few times."* A brand-new user meets the app first.
+     */
+    const val APP_OPEN_FREE_OPENS = 2
+
+    /** At most one app-open ad an hour — a product decision, 20 Oct 2026. Measured on the wall clock,
+     * because the cap has to survive the process dying between opens. */
+    const val APP_OPEN_MIN_GAP_MS = 60L * 60L * 1000L
+
+    /**
+     * Has the hourly cap cleared? True when none has been shown yet.
+     *
+     * ⚠️ A clock set BACKWARDS (now < lastAt) also counts as cleared. Otherwise one wrong-time
+     * correction on the phone would silence the ad until the clock caught up — possibly days.
+     */
+    fun appOpenGapElapsed(lastAt: Long, now: Long): Boolean =
+        lastAt == NEVER || now < lastAt || now - lastAt >= APP_OPEN_MIN_GAP_MS
+
+    /**
+     * May this open of the app show an app-open ad?
+     *
+     * Every condition maps to a rule or a failure seen before:
+     *  · [opens] past the free ones           — "after your users have used your app a few times"
+     *  · not inside the earned ad-free window — that window promises NO ads, full-screen included
+     *  · not right after an ad click          — the user is coming back from an ad, not opening the app
+     *  · the hourly cap                       — [APP_OPEN_MIN_GAP_MS]
+     *  · 60s clear of any other full-screen ad — "Don't display ads immediately before or after
+     *                                           app open ads"; the same floor the interstitial keeps
+     */
+    fun shouldShowAppOpen(
+        opens: Int,
+        lastAppOpenAt: Long,
+        nowWall: Long,
+        lastFullScreenAt: Long,
+        nowElapsed: Long,
+        adFree: Boolean,
+        clickedAway: Boolean,
+    ): Boolean =
+        opens > APP_OPEN_FREE_OPENS &&
+            !adFree &&
+            !clickedAway &&
+            appOpenGapElapsed(lastAppOpenAt, nowWall) &&
+            gapElapsed(lastFullScreenAt, nowElapsed)
 }

@@ -77,4 +77,18 @@ object Prefs {
     /** The accent the user is actually using. 0 = the default Riplox look. */
     fun accent(c: Context) = sp(c).getInt("accent", 0)
     fun setAccent(c: Context, v: Int) = sp(c).edit().putInt("accent", v).apply()
+
+    // ---- App open ad (see AppOpen.kt) ----
+
+    /** Count one more open of the app and return the new total. Persisted — the first-opens
+     * grace has to mean "the first two ever", not "the first two since the process started". */
+    fun bumpAppOpens(c: Context): Int {
+        val n = sp(c).getInt("appOpens", 0) + 1
+        sp(c).edit().putInt("appOpens", n).apply()
+        return n
+    }
+
+    /** Wall-clock millis of the last app-open ad actually SHOWN. 0 = never. */
+    fun lastAppOpenAt(c: Context) = sp(c).getLong("lastAppOpenAt", 0L)
+    fun setLastAppOpenAt(c: Context, v: Long) = sp(c).edit().putLong("lastAppOpenAt", v).apply()
 }

@@ -3,6 +3,20 @@
 All notable changes to Riplox TT are documented here.
 Versioning: **MAJOR.MINOR.PATCH** — new features bump MINOR, fixes bump PATCH.
 
+## [1.3.0] — 2026-11-01
+
+The share sheet shows you the video, the app keeps its download engine honest, and the app's own ads are rearranged around the sheet.
+
+### Changed
+- **The share sheet shows the video, large.** On phones with room for it, sharing a TikTok to Riplox TT now opens a taller sheet with a big preview of what is being saved, above the progress and the buttons. Smaller screens and landscape keep the compact sheet.
+- **One ad on the share sheet, inside it.** The tall sheet carries a single medium-sized ad at its top, inside the panel, with a clear gap before the preview and the buttons — and the strip that used to sit under the buttons is gone there. The panel never changes height while it is open, so nothing moves under your finger.
+- **A short welcome screen when you open the app.** Opening Riplox TT can now show an ad on a brief splash before the home screen — at most once an hour, never on the first two opens, never on the share sheet, and never while your ad-free time is running.
+
+### Fixed
+- **The download engine could get stuck on an old version for good.** Its update check trusted a stored version note and never looked at what was actually installed, so a note written while the files were not meant every later check answered "nothing to do". The version is now read by asking the engine itself, and a note that disagrees is discarded so the update really happens.
+- **The engine could never repair itself after a failure.** Downloads started from the share sheet only refreshed the engine after one had *succeeded*, and a download waiting to be retried counted as "busy", which skipped the update too. A failure now triggers the refresh — that is exactly when a fresh engine helps.
+- **The banner's retry interval now really stops at 60 seconds.** It was meant to back off to a minute between attempts and stopped at 40 seconds instead.
+
 ## [1.2.1] — 2026-09-24
 
 ### Changed

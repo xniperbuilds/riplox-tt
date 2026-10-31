@@ -64,6 +64,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -91,6 +92,10 @@ import java.util.Date
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
+
+    /** Up while the app-open splash covers the screen — see AppOpen.kt. */
+    private val cover = mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -129,16 +134,63 @@ class MainActivity : ComponentActivity() {
         setContent {
             com.xniperbuilds.downloader.ui.theme.XniperDownloaderTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    Home(this)
+                    // On a cold open with the splash up, Home is not composed at all until the
+                    // splash goes — its startup work (clipboard, update check, rewarded fetch)
+                    // waits a moment instead of running unseen. Once composed it stays, and a
+                    // later splash simply covers it.
+                    var homeComposed by remember { mutableStateOf(!cover.value) }
+                    LaunchedEffect(cover.value) { if (!cover.value) homeComposed = true }
+                    Box(Modifier.fillMaxSize()) {
+                        if (homeComposed) Home(this@MainActivity, hideBanner = cover.value)
+                        if (cover.value) OpenSplash()
+                    }
                 }
             }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // super.onStart() has just run XniperApp's lifecycle callbacks, so whether this start is
+        // a real open of the app is already known.
+        if (AppOpen.takeOpenEvent()) AppOpen.onOpen(this, cover)
+    }
+}
+
+/**
+ * The app-open splash: brand on black, and nothing to press. It swallows every touch, because
+ * Google requires the app-open ad to "appear before the user can interact with the app's content".
+ */
+@Composable
+private fun OpenSplash() {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) awaitPointerEvent().changes.forEach { it.consume() }
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            RiploxTile(72)
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Riplox TT",
+                color = Color(0xFFE8EEF5),
+                fontSize = 24.sp,
+                fontFamily = SpaceGrotesk,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Home(activity: ComponentActivity) {
+fun Home(activity: ComponentActivity, hideBanner: Boolean = false) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -789,7 +841,9 @@ fun Home(activity: ComponentActivity) {
             }
         }
     }
-        key(adsEpoch) { BannerAd() }
+        // Out of the composition while the app-open splash is up: Google forbids showing that ad
+        // "on top of other ads (for example, content with banner ads)".
+        if (!hideBanner) key(adsEpoch) { BannerAd() }
     }
 
     // ---- Background-setup dialog (opens from both the banner and About) ----

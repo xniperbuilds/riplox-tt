@@ -2,9 +2,13 @@ package com.xniperbuilds.downloader
 
 import android.app.Activity
 import android.content.Context
+import android.os.SystemClock
+import android.util.Log
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -14,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -33,8 +38,11 @@ import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 
+private const val TAG = "RiploxTT.Ads"
+
 /**
- * AdMob — bottom banner (home) + interstitial (on every 2nd completed download).
+ * AdMob — a bottom banner (home + share sheet), a 300×250 box (tall share sheet), an
+ * interstitial at two logical breaks, and an app-open ad (AppOpen.kt).
  *
  * The IDs now live in **build.gradle.kts** (BuildConfig + manifest placeholder):
  *   release build → the real ids
@@ -68,6 +76,34 @@ object Ads {
     val rewardedConfigured: Boolean get() = REWARDED_ID.isNotBlank()
 
     /**
+     * The 300×250 box at the top of the share sheet (tall screens). Its own unit so its
+     * earnings show apart from the strip; until that unit exists it borrows the banner unit,
+     * which serves any banner size.
+     */
+    val BOX_ID: String = BuildConfig.AD_BOX_ID.ifBlank { BuildConfig.AD_BANNER_ID }
+
+    /** App open unit (AppOpen.kt). Blank = the whole app-open flow is off. */
+    val APP_OPEN_ID: String = BuildConfig.AD_APP_OPEN_ID
+
+    val appOpenConfigured: Boolean get() = APP_OPEN_ID.isNotBlank()
+
+    /**
+     * Set when the user taps ANY of our ads, cleared by the next app open.
+     *
+     * Tapping an ad sends the user out of the app; coming back is not "opening the app", and an
+     * app-open ad at that moment would be an ad straight after an ad.
+     */
+    @Volatile
+    private var clickedAway = false
+
+    fun noteAdClick() {
+        clickedAway = true
+    }
+
+    /** Read and clear [clickedAway] — only an actual open event should consume it. */
+    fun takeClickedAway(): Boolean = clickedAway.also { clickedAway = false }
+
+    /**
      * Is the user inside their earned ad-free window?
      *
      * Every ad path in the app goes through this. The window is a real reward — it silences
@@ -76,16 +112,6 @@ object Ads {
      */
     fun suppressed(ctx: Context): Boolean =
         Streak.adFree(Prefs.adFreeUntil(ctx), System.currentTimeMillis())
-
-    private var interstitial: InterstitialAd? = null
-    private var loading = false
-    private var completedCount = 0
-    private var lastFullScreenAt = AdGate.NEVER
-
-    /** When the cached [interstitial] was loaded, so a stale one can be dropped before showing. */
-    private var loadedAt = AdGate.NEVER
-
-    private fun now(): Long = android.os.SystemClock.elapsedRealtime()
 
     // ---- Rewarded: the ad-free window and accent unlocks (see Streak.kt) ----
 
@@ -165,6 +191,27 @@ object Ads {
         ad.show(activity) { earned = true }
     }
 
+
+    private var interstitial: InterstitialAd? = null
+    private var loading = false
+    private var completedCount = 0
+
+    /**
+     * Elapsed-realtime of the last full-screen ad of ANY kind — interstitial or app open.
+     * Shared on purpose: the 60s floor has to hold between the two formats, not just within one.
+     */
+    var lastFullScreenAt = AdGate.NEVER
+        private set
+
+    /** When the cached [interstitial] was loaded, so a stale one can be dropped before showing. */
+    private var loadedAt = AdGate.NEVER
+
+    private fun now(): Long = android.os.SystemClock.elapsedRealtime()
+
+    fun markFullScreenShown() {
+        lastFullScreenAt = now()
+    }
+
     /**
      * Fetch an interstitial **only if one is actually going to be shown next.**
      *
@@ -232,10 +279,6 @@ object Ads {
         return ad
     }
 
-    private fun markFullScreenShown() {
-        lastFullScreenAt = now()
-    }
-
     /**
      * A download finished — show an interstitial on every 2nd one (provided the app is in
      * the foreground and an ad is ready). Otherwise skip quietly and, if the *next* completion
@@ -252,6 +295,7 @@ object Ads {
         ad.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() {}
             override fun onAdFailedToShowFullScreenContent(e: AdError) {}
+            override fun onAdClicked() { noteAdClick() }
         }
         markFullScreenShown()
         ad.show(activity)
@@ -288,6 +332,7 @@ object Ads {
         ad.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() { then() }
             override fun onAdFailedToShowFullScreenContent(e: AdError) { then() }
+            override fun onAdClicked() { noteAdClick() }
         }
         markFullScreenShown()
         ad.show(activity)
@@ -326,26 +371,51 @@ object Ads {
  */
 @Composable
 fun BannerAd(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val widthDp = LocalConfiguration.current.screenWidthDp
+    val adSize = remember(widthDp) {
+        AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(context, widthDp)
+    }
+    AdSlot(adSize, Ads.BANNER_ID, modifier.fillMaxWidth().height(adSize.height.dp))
+}
+
+/**
+ * The 300×250 box at the top of the tall share sheet (v1.3.0).
+ *
+ * Its size is reserved from the very first frame and never changes — the slot shows
+ * [placeholder] until an ad lands, and keeps it if none ever does. That is deliberate: a slot
+ * that grew when its ad arrived would push the panel's top edge up into exactly the place a
+ * user taps to dismiss the sheet, and an ad that jumps under a finger is the textbook
+ * accidental click.
+ *
+ * ⚠️ Never clip or round this AdView. The AdChoices badge sits in the creative's corner, and a
+ * clipped one is a policy problem, not a style choice.
+ */
+@Composable
+fun BoxAd(modifier: Modifier = Modifier, placeholder: Color = Color.Transparent) {
+    AdSlot(AdSize.MEDIUM_RECTANGLE, Ads.BOX_ID, modifier.size(300.dp, 250.dp).background(placeholder))
+}
+
+/** One ad slot: retry ladder, lifecycle, cleanup. Shared by [BannerAd] and [BoxAd]. */
+@Composable
+private fun AdSlot(adSize: AdSize, unitId: String, modifier: Modifier) {
     if (!Ads.ENABLED) return
     val context = LocalContext.current
     // The earned ad-free window silences this slot completely — no AdView is even created,
     // so nothing is requested and nothing is billed against viewability.
     if (Ads.suppressed(context)) return
     val lifecycleOwner = LocalLifecycleOwner.current
-    val widthDp = LocalConfiguration.current.screenWidthDp
-
-    val adSize = remember(widthDp) {
-        AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(context, widthDp)
-    }
 
     // ONE AdView for the life of this slot. Recreating it on recomposition would fire a fresh
     // ad request every time the screen changed, which is how you get throttled.
     val adView = remember {
         AdView(context).apply {
             setAdSize(adSize)
-            adUnitId = Ads.BANNER_ID
+            adUnitId = unitId
         }
     }
+    // For the load-time line in logcat — the only way to see how long a sheet waits for its ad.
+    val bornAt = remember { SystemClock.elapsedRealtime() }
 
     // `attempt` drives the backoff; `tick` is what actually re-triggers a load. They are
     // separate because a successful load resets `attempt` to 0, and that alone must NOT count
@@ -355,14 +425,20 @@ fun BannerAd(modifier: Modifier = Modifier) {
 
     DisposableEffect(adView) {
         adView.adListener = object : AdListener() {
-            override fun onAdLoaded() { attempt = 0 }
+            override fun onAdLoaded() {
+                Log.i(TAG, "${adSize.width}x${adSize.height} loaded +${SystemClock.elapsedRealtime() - bornAt}ms (after $attempt failed)")
+                attempt = 0
+            }
             override fun onAdFailedToLoad(error: LoadAdError) {
+                Log.i(TAG, "${adSize.width}x${adSize.height} failed code=${error.code} +${SystemClock.elapsedRealtime() - bornAt}ms")
                 // Code 3 is NO_FILL and is by far the common one. Everything else (network,
                 // internal error) is retried the same way — none of them are permanent, and a
                 // banner that gives up is indistinguishable to the user from a broken app.
                 attempt += 1
                 tick += 1
             }
+            // Tapping an ad leaves the app; coming back must not be greeted by an app-open ad.
+            override fun onAdClicked() { Ads.noteAdClick() }
         }
         onDispose {
             adView.adListener = object : AdListener() {}
@@ -372,7 +448,9 @@ fun BannerAd(modifier: Modifier = Modifier) {
 
     LaunchedEffect(tick) {
         if (attempt > 0) {
-            val step = (attempt - 1).coerceAtMost(3)
+            // 5 → 10 → 20 → 40 → 60s, then 60s for good. (This capped at 40s before v1.3.0 —
+            // the step stopped one short of the 60s the comment above promises.)
+            val step = (attempt - 1).coerceAtMost(4)
             kotlinx.coroutines.delay(minOf(60_000L, 5_000L shl step))
         }
         adView.loadAd(AdRequest.Builder().build())
@@ -390,10 +468,7 @@ fun BannerAd(modifier: Modifier = Modifier) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
     }
 
-    Box(
-        modifier = modifier.fillMaxWidth().height(adSize.height.dp),
-        contentAlignment = Alignment.Center
-    ) {
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
         AndroidView(factory = { adView })
     }
 }

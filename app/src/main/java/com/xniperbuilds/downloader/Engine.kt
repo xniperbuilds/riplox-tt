@@ -3,6 +3,7 @@ package com.xniperbuilds.downloader
 import android.content.Context
 import android.util.Log
 import com.yausername.youtubedl_android.YoutubeDL
+import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -34,14 +35,100 @@ object Engine {
     /** The outcome of an update attempt, in words a non-technical user can act on. */
     enum class Outcome { UPDATED, ALREADY_LATEST, FAILED }
 
+    private const val TAG = "RiploxTT"
+
+    /**
+     * The library's own SharedPreferences file, and the two keys it stores the engine version
+     * in. Reaching into another library's preferences is not something to do lightly — see
+     * `markerIsLying` for why there is no other way to break the trap it creates.
+     */
+    private const val LIB_PREFS = "youtubedl-android"
+    private const val KEY_VERSION = "dlpVersion"
+    private const val KEY_VERSION_NAME = "dlpVersionName"
+
     private fun today(): String = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
 
-    /** The engine version string, or null when it cannot be read. */
+    /**
+     * The version the library CLAIMS, which is all `YoutubeDL.version()` has ever returned:
+     * `SharedPrefsHelper.get(context, "dlpVersion")` — a string written after a past update.
+     * It is not read from yt-dlp, and it is the number that lied for weeks.
+     */
     fun version(context: Context): String? = try {
         YoutubeDL.getInstance().version(context)
     } catch (e: Exception) {
-        Log.w("RiploxTT", "engine version unavailable: ${e.message}")
+        Log.w(TAG, "engine version unavailable: ${e.message}")
         null
+    }
+
+    /**
+     * The version yt-dlp reports about ITSELF — obtained by running it.
+     *
+     * The only source of truth about what is actually on disk. Costs one short process spawn,
+     * and is only consulted after an update claims there was nothing to do.
+     */
+    fun realVersion(context: Context): String? = try {
+        val req = YoutubeDLRequest(emptyList<String>()).apply { addOption("--version") }
+        YoutubeDL.getInstance().execute(req).out
+            .lineSequence().map { it.trim() }.lastOrNull { it.isNotEmpty() }
+    } catch (e: Exception) {
+        Log.w(TAG, "engine self-report failed: ${e.message}")
+        null
+    }
+
+    /** `YYYY.MM.DD` out of a version string — the part both channels always agree on. */
+    private fun dateOf(v: String): String = v.trim().take(10)
+
+    /**
+     * ⚠️⚠️ THE TRAP THIS EXISTS TO BREAK — measured on Nazim's phone, 10-Sep-2026.
+     *
+     * The library decides "already up to date" by comparing its SharedPreferences marker with
+     * GitHub's latest tag. It never looks at the yt-dlp on disk. So if the marker is ever
+     * written while the files are NOT (an interrupted copy, a restore, a kill mid-update), the
+     * app is trapped forever: every check answers ALREADY_UP_TO_DATE and downloads nothing,
+     * while the engine underneath stays whatever it was.
+     *
+     * That is exactly what happened here. The app logged
+     * `engine update → ALREADY_LATEST (2026.08.30.232658)` while the engine actually running
+     * was the bundled `2025.11.12` — proved by the error text it produced, a string that
+     * exists ONLY in the old extractor (Riplox IG). On Instagram that is fatal rather than cosmetic: the
+     * old extractor has no logged-out code path at all, so every download without a connected
+     * account failed, and the daily update that would have fixed it kept answering "nothing to
+     * do". The same phone's other app, on a real 2026 engine, downloaded the same links fine.
+     *
+     * Compared on the date part only: nightly tags carry a time suffix (`2026.08.30.232658`)
+     * that a stable build does not, and an exact-match test would force a re-download forever.
+     */
+    private fun markerIsLying(context: Context): Boolean {
+        val claimed = version(context)?.trim().orEmpty()
+        val real = realVersion(context)?.trim().orEmpty()
+        // Either side unreadable → say nothing. A wrong "yes" here costs a pointless download
+        // on every single check, which is worse than missing one stale engine.
+        if (claimed.isBlank() || real.isBlank()) return false
+        val lying = dateOf(real) < dateOf(claimed)
+        if (lying) Log.w(TAG, "engine marker says $claimed but yt-dlp says $real — forcing update")
+        return lying
+    }
+
+    /**
+     * Drop the library's version marker so its next update cannot short-circuit.
+     *
+     * lazy: this writes another library's SharedPreferences by name. The ceiling is that a
+     * future youtubedl-android could rename the file or the keys, and the force-update would
+     * quietly stop working (downloads would still work — this only re-arms the update). The
+     * upgrade path is a real API: youtubedl-android would have to expose either a force flag
+     * on `updateYoutubeDL` or a version read that comes from yt-dlp itself.
+     */
+    private fun clearVersionMarker(context: Context) {
+        try {
+            context.applicationContext
+                .getSharedPreferences(LIB_PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .remove(KEY_VERSION)
+                .remove(KEY_VERSION_NAME)
+                .apply()
+        } catch (e: Exception) {
+            Log.w(TAG, "could not clear engine version marker: ${e.message}")
+        }
     }
 
     /**
@@ -52,33 +139,51 @@ object Engine {
      */
     suspend fun update(context: Context): Outcome = withContext(Dispatchers.IO) {
         val outcome = try {
-            val status = YoutubeDL.getInstance()
-                .updateYoutubeDL(context, YoutubeDL.UpdateChannel.NIGHTLY)
             // Matched on the NAME rather than the enum constant: the library has renamed these
             // before, and an update that works must not be reported as a failure because a
             // constant moved.
-            if (status?.name?.contains("ALREADY", ignoreCase = true) == true) {
-                Outcome.ALREADY_LATEST
-            } else {
-                Outcome.UPDATED
+            fun runUpdate(): Boolean = YoutubeDL.getInstance()
+                .updateYoutubeDL(context, YoutubeDL.UpdateChannel.NIGHTLY)
+                ?.name?.contains("ALREADY", ignoreCase = true) == true
+
+            var alreadyLatest = runUpdate()
+            // ⚠️ "Nothing to do" is only believed once it has been checked against the engine
+            // on disk. Without this the app can be trapped on a stale engine permanently —
+            // see markerIsLying for the measured case that put it here.
+            if (alreadyLatest && markerIsLying(context)) {
+                clearVersionMarker(context)
+                alreadyLatest = runUpdate()
+                if (alreadyLatest) {
+                    // The marker is gone, so the library had to compare against GitHub afresh.
+                    // Still nothing? Then the download itself is failing, not the check.
+                    Log.w(TAG, "forced update still reported ALREADY — engine files not replaced")
+                }
             }
+            if (alreadyLatest) Outcome.ALREADY_LATEST else Outcome.UPDATED
         } catch (e: Exception) {
-            Log.w("RiploxTT", "engine update failed: ${e.message}")
+            Log.w(TAG, "engine update failed: ${e.message}")
             Outcome.FAILED
         }
-        Prefs.setEngineResult(context, outcome.name, version(context).orEmpty())
+        // Recorded from yt-dlp itself where it can be reached, so About shows what is RUNNING
+        // rather than what the library believes. The claim is the fallback, not the source.
+        val shown = realVersion(context)?.takeIf { it.isNotBlank() } ?: version(context).orEmpty()
+        Prefs.setEngineResult(context, outcome.name, shown)
         if (outcome != Outcome.FAILED) Prefs.setLastUpdateDay(context, today())
-        Log.i("RiploxTT", "engine update → $outcome (${Prefs.engineVersion(context)})")
+        Log.i(TAG, "engine update → $outcome ($shown)")
         outcome
     }
 
     /**
-     * The once-a-day check, called from EVERY entry point — the home screen and the share tile
-     * both. Never runs while a download is active (an engine swap mid-download is how you break
-     * a running job).
+     * The once-a-day check, called from EVERY entry point — the home screen and the share
+     * sheet both. Never runs while a download is RUNNING (an engine swap mid-download is how
+     * you break a running job).
      *
      * The day marker is only written on success, so a failed attempt is retried at the next
      * opportunity rather than being treated as "done for today".
+     *
+     * ⚠️ "Busy" no longer includes a job parked on the retry backoff ladder — see hasActive.
+     * A stale engine is what makes downloads fail, so treating failing-and-retrying downloads
+     * as a reason not to update meant the fix was skipped precisely when it was needed.
      */
     suspend fun dailyIfDue(context: Context) {
         if (Prefs.lastUpdateDay(context) == today()) return

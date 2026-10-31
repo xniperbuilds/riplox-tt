@@ -63,8 +63,19 @@ android {
         //     check in"); free when none is, and inside the ad-free window.
         //   · Cold-start crash: UMP built the window decor on its worker thread while the main
         //     thread's setContent() built it too (3/10 cold shares on a Huawei). See Consent.gather.
-        versionCode = 9
-        versionName = "1.2.1"
+        // v1.3.0 (vc10) = the Riplox IG v1.2.1 + v1.3.0 work, ported:
+        //   · Engine: the version is read by RUNNING yt-dlp, not from the library's stored
+        //     marker; a marker caught lying is cleared so the update really happens. The share
+        //     sheet refreshes the engine after a FAILED download too, and a download parked on
+        //     the retry backoff no longer counts as "busy".
+        //   · Share sheet on a tall screen: a 300×250 box ad INSIDE the panel (AdMob forbids an
+        //     ad floating over the dimmed source app), a large preview, the bottom strip retired
+        //     there — one ad per sheet. Short screens and landscape keep the compact sheet.
+        //   · App open ad: brand splash, at most one an hour, never on the first two opens,
+        //     never from the share sheet, never in the ad-free window (AdGate.shouldShowAppOpen).
+        //   · The ads SDK starts at once when earlier consent already allows it.
+        versionCode = 10
+        versionName = "1.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -78,6 +89,11 @@ android {
         // created in the AdMob console. While it is blank the app hides every rewarded option
         // rather than offering a reward it cannot deliver.
         buildConfigField("String", "AD_REWARDED_ID", "\"ca-app-pub-8029174313177489/7318626890\"")
+        // v1.3.0 units — banner "TT Sheet Box" + "TT App Open" (record: admob-riploxtt.txt).
+        //   Box: blank falls back to the banner unit (a banner unit serves any banner size).
+        //   App open: blank switches the whole app-open flow OFF — no splash, no request.
+        buildConfigField("String", "AD_BOX_ID", "\"\"")
+        buildConfigField("String", "AD_APP_OPEN_ID", "\"\"")
 
         buildConfigField("String", "TT_WORKER_URL", "\"$ttWorkerUrl\"")
         buildConfigField("String", "TT_WORKER_TOKEN", "\"$ttWorkerToken\"")
@@ -134,6 +150,9 @@ android {
             buildConfigField("String", "AD_INTERSTITIAL_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
             // Google's public test rewarded unit
             buildConfigField("String", "AD_REWARDED_ID", "\"ca-app-pub-3940256099942544/5224354917\"")
+            // Google's public test banner (serves the 300×250 box too) and test app-open units
+            buildConfigField("String", "AD_BOX_ID", "\"ca-app-pub-3940256099942544/6300978111\"")
+            buildConfigField("String", "AD_APP_OPEN_ID", "\"ca-app-pub-3940256099942544/9257395921\"")
         }
     }
     compileOptions {
