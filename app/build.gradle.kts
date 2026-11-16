@@ -128,9 +128,10 @@ android {
     }
     buildTypes {
         release {
-            optimization {
-                enable = false
-            }
+            // R8 on (Play: "Obfuscation 0%", fix by Feb 2027). Keep rules: proguard-rules.pro.
+            // The qa build inherits this, so the phone test runs the same shrunk code.
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = if (riploxKs != null) signingConfigs.getByName("release")
             else signingConfigs.getByName("debug")
         }

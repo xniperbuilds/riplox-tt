@@ -14,6 +14,7 @@ The home screen puts the link box first, and quiet downloads get their sound bac
 - **Download shows once there is a link**, and says "Download MP3" in MP3 mode.
 - **Downloading · Downloaded · Failed tabs** under the link box. Downloading shows live progress with Cancel; Downloaded shows the newest five with "Show all", plus search and Delete all once there are five or more; the open tab follows your downloads.
 - Downloaded rows show a video icon when the phone cannot draw a picture from the file, and photo posts are labelled "Photos".
+- **A smaller app.** The app's code is now optimised when it is built, so the download is about 13 MB lighter.
 
 ### Fixed
 - **Downloads could sound much quieter than in the TikTok app.** TikTok raises the volume while it plays, but the file itself does not carry that — saved videos ranged from loud to very quiet. Quiet videos and MP3s are now raised to a normal listening level when they are saved (only the sound is touched; the picture stays exactly as it was). Videos that are already loud are left alone.
