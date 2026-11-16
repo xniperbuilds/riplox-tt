@@ -45,7 +45,9 @@ WANT_DEX = [
     (REAL_BANNER, "real banner id"),
     (REAL_INTER, "real interstitial id"),
     (REAL_REWARDED, "real rewarded id (v1.2.0)"),
-    (b"TikTokExtractor", "TikTok extractor (the v1.1.3 download fix)"),
+    # ⚠️ v1.3.1 turned R8 on, so CLASS NAMES are renamed in the dex. Features are checked by a
+    # string literal of their own (R8 keeps those), never by a class name.
+    (b"handing over to the browser", "TikTok extractor (the v1.1.3 download fix)"),
     # ⚠️ v1.1.5: the Worker URL and its header come from local.properties, so a build made on a
     # machine without them compiles and installs perfectly and then quietly falls back to the
     # on-device routes — which return TikTok's WATERMARKED rendition. Nothing crashes; the app
@@ -57,7 +59,13 @@ WANT_DEX = [
     # banner unit and the app-open flow OFF - so both are checked here, by value.
     (REAL_BOX, "real sheet-box id (new in v1.3.0)"),
     (REAL_APP_OPEN, "real app-open id (new in v1.3.0)"),
-    (b"Lcom/xniperbuilds/downloader/AppOpen;", "app-open flow (new in v1.3.0)"),
+    (b"opening without one", "app-open flow (new in v1.3.0)"),
+    (b"ebur128=peak=sample", "loudness fix (new in v1.3.1)"),
+]
+
+# v1.3.1: R8 is on. Without the mapping inside the bundle, Play's crash reports are unreadable.
+WANT_ENTRIES = [
+    ("BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map", "R8 mapping (deobfuscation)"),
 ]
 
 # These strings must NOT be present in the bundle. Play's Device & Network Abuse policy:
@@ -90,6 +98,12 @@ def main():
     print("-- dex --")
     for needle, label in WANT_DEX:
         found = needle in dex
+        ok = ok and found
+        print("  %-40s %s" % (label, "OK" if found else "*** MISSING ***"))
+
+    print("-- bundle entries --")
+    for entry, label in WANT_ENTRIES:
+        found = entry in names
         ok = ok and found
         print("  %-40s %s" % (label, "OK" if found else "*** MISSING ***"))
 
