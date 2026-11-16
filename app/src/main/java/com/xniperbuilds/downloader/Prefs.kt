@@ -6,9 +6,13 @@ import android.content.Context
 object Prefs {
     private fun sp(c: Context) = c.getSharedPreferences("riploxtt_prefs", Context.MODE_PRIVATE)
 
-    /** Video quality: "best" | "1080" | "720" | "480". Default 1080p. */
-    fun quality(c: Context): String = sp(c).getString("quality", "1080") ?: "1080"
-    fun setQuality(c: Context, v: String) = sp(c).edit().putString("quality", v).apply()
+    /**
+     * Video quality — always "best". The home screen offers Best quality and MP3 only.
+     * ⚠️ A 1080/720/480 saved by an older version is ignored on purpose: with no chip left to
+     * change it, a stored cap would hold that user at 480p forever.
+     */
+    @Suppress("UNUSED_PARAMETER")
+    fun quality(c: Context): String = "best"
 
     /** true = MP3 (audio-only) — home chip + share tile dono isi se chalte hain. */
     fun audioMode(c: Context) = sp(c).getBoolean("audioMode", false)

@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xniperbuilds.downloader.ui.theme.SpaceGrotesk
@@ -95,6 +96,7 @@ fun GradientButton(
     text: String,
     enabled: Boolean = true,
     modifier: Modifier = Modifier.fillMaxWidth(),
+    verticalPadding: Dp = 16.dp,
     onClick: () -> Unit
 ) {
     val accent = Accent.current(LocalContext.current)
@@ -104,7 +106,7 @@ fun GradientButton(
             .clip(RoundedCornerShape(16.dp))
             .background(Brush.linearGradient(listOf(accent.primary, accent.gradientEnd)))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 16.dp),
+            .padding(vertical = verticalPadding),
         contentAlignment = Alignment.Center
     ) {
         Text(text, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, fontFamily = SpaceGrotesk)

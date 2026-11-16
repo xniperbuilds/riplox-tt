@@ -328,22 +328,42 @@ private fun saveWithBeats(
  * (Verified on desktop: a 3MB mp4 → a 568KB mp3.)
  */
 private fun toMp3(
+    context: Context,
     src: File,
     outDir: File,
     processId: String?,
     onBeat: () -> Unit
 ): File {
-    outDir.mkdirs()
-    val req = YoutubeDLRequest("file://${src.absolutePath}")
-    req.addOption("--enable-file-urls")
-    req.addOption("-x")
-    req.addOption("--audio-format", "mp3")
-    req.addOption("--audio-quality", "0")
-    req.addOption("--no-warnings")
-    req.addOption("-o", "${outDir.absolutePath}/${src.nameWithoutExtension}.%(ext)s")
-    YoutubeDL.getInstance().execute(req, processId) { _, _, _ -> onBeat() }
-    return outDir.walkTopDown().filter { it.isFile && it.extension.equals("mp3", true) }.firstOrNull()
-        ?: throw Exception("MP3 convert failed")
+    // A quiet source makes a quiet MP3 — raise it in the SAME encode (see Loudness.kt), so the
+    // audio is not compressed twice. If ffmpeg refuses the filter, the plain MP3 still gets made.
+    val boost = Loudness.mp3Filter(context, src, onBeat)
+    for (af in listOfNotNull(boost, "")) {
+        outDir.deleteRecursively()
+        outDir.mkdirs()
+        val req = YoutubeDLRequest("file://${src.absolutePath}")
+        req.addOption("--enable-file-urls")
+        req.addOption("-x")
+        req.addOption("--audio-format", "mp3")
+        req.addOption("--audio-quality", "0")
+        if (af.isNotEmpty()) req.addOption("--postprocessor-args", "ExtractAudio:-af $af")
+        req.addOption("--no-warnings")
+        req.addOption("-o", "${outDir.absolutePath}/${src.nameWithoutExtension}.%(ext)s")
+        try {
+            YoutubeDL.getInstance().execute(req, processId) { _, _, _ -> onBeat() }
+        } catch (e: YoutubeDL.CanceledException) {
+            throw e
+        } catch (e: Exception) {
+            if (af.isEmpty()) throw e
+            Log.w("RiploxTT", "MP3 with loudness boost failed — plain MP3 instead: ${e.message}")
+            continue
+        }
+        outDir.walkTopDown().filter { it.isFile && it.extension.equals("mp3", true) }.firstOrNull()
+            ?.let {
+                if (af.isNotEmpty()) Log.i("RiploxTT", "loudness: MP3 boosted ($af)")
+                return it
+            }
+    }
+    throw Exception("MP3 convert failed")
 }
 
 /**
@@ -497,12 +517,14 @@ private suspend fun webViewDownload(
 
     if (audioOnly) {
         onProgress(99) // ab convert phase — "Finishing" dikhega
-        val mp3 = toMp3(videoFile, File(work, "audio"), processId, onBeat)
+        val mp3 = toMp3(context, videoFile, File(work, "audio"), processId, onBeat)
         val location = saveWithBeats(context, mp3, true, onBeat, onSave)
         History.add(context, link, mp3.name, "TT", location, true)
         return "Music/RiploxTT/${mp3.name}"
     }
 
+    onProgress(99) // "Finishing" — the loudness check runs before the gallery save
+    Loudness.boostVideo(context, videoFile, onBeat)
     val fname = videoFile.name
     val location = saveWithBeats(context, videoFile, false, onBeat, onSave)
     History.add(context, link, fname, "TT", location, false)
@@ -592,6 +614,9 @@ private fun ytdlpDownload(
         var saved = 0
         for (file in media) {
             val fname = file.name
+            // lazy: only .mp4 videos get the loudness boost on this fallback route; its MP3s
+            // (already made by yt-dlp) are saved as they are. Upgrade: a Loudness.boostAudio.
+            if (!audioOnly && file.extension.equals("mp4", true)) Loudness.boostVideo(context, file, onBeat)
             val location = saveWithBeats(context, file, audioOnly, onBeat, onSave)
             History.add(context, link, fname, "TT", location, audioOnly)
             if (saved == 0) firstDisplay = "${if (audioOnly) "Music" else "Movies"}/RiploxTT/$fname"

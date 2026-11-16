@@ -74,8 +74,10 @@ android {
         //   · App open ad: brand splash, at most one an hour, never on the first two opens,
         //     never from the share sheet, never in the ad-free window (AdGate.shouldShowAppOpen).
         //   · The ads SDK starts at once when earlier consent already allows it.
-        versionCode = 10
-        versionName = "1.3.0"
+        // v1.3.1 = the home screen redone around the link box (ported from Riplox IG 1.3.1),
+        //   and quiet downloads get their loudness back (see Loudness.kt).
+        versionCode = 11
+        versionName = "1.3.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
